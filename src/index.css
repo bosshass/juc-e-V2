@@ -1,0 +1,348 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root {
+  --navy: #0A2240;
+  --navy-dark: #061529;
+  --red: #C41E1E;
+  --red-hover: #A01919;
+  --white: #FFFFFF;
+  --gray-light: #F8F9FA;
+  --gray-mid: #E5E7EB;
+  --gray-text: #6B7280;
+  
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #1E1E1E;
+  background-color: var(--gray-light);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--gray-light);
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--navy);
+}
+
+button {
+  border-radius: 10px;
+  border: none;
+  padding: 0.75em 1.5em;
+  font-size: 1em;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+a {
+  color: var(--red);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* App Container */
+.app-container {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 20px;
+  padding-bottom: 100px;
+}
+
+/* Header */
+.app-header {
+  background: var(--navy);
+  padding: 15px 20px;
+  margin: -20px -20px 20px -20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-header img {
+  height: 40px;
+}
+
+.app-header-user {
+  color: rgba(255,255,255,0.7);
+  font-size: 12px;
+}
+
+/* Cards */
+.card {
+  background: var(--white);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--gray-mid);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+/* Main Action Buttons */
+.btn-main {
+  width: 100%;
+  height: 70px;
+  font-size: 18px;
+  margin-bottom: 12px;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.btn-dispatch { background: var(--navy); }
+.btn-dispatch:hover { background: var(--navy-dark); }
+
+.btn-tasks { background: #f59e0b; }
+.btn-tasks:hover { background: #d97706; }
+
+.btn-today { background: #2563eb; }
+.btn-today:hover { background: #1d4ed8; }
+
+.btn-billing { background: #16a34a; }
+.btn-billing:hover { background: #15803d; }
+
+.btn-service { background: var(--red); }
+.btn-service:hover { background: var(--red-hover); }
+
+.btn-week { background: #16a34a; }
+.btn-week:hover { background: #15803d; }
+
+.btn-return { background: var(--gray-text); }
+.btn-return:hover { background: #4b5563; }
+
+.btn-past { background: #8b5cf6; }
+.btn-past:hover { background: #7c3aed; }
+
+/* Secondary Buttons */
+.btn-secondary {
+  background: var(--white);
+  color: var(--navy);
+  border: 2px solid var(--navy);
+}
+
+.btn-secondary:hover {
+  background: var(--navy);
+  color: var(--white);
+}
+
+.btn-danger {
+  background: var(--red);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: var(--red-hover);
+}
+
+/* Quick Links */
+.quick-links {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--navy);
+  padding: 12px 20px;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  z-index: 100;
+}
+
+.quick-link {
+  padding: 10px 20px;
+  border-radius: 8px;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.quick-link:hover {
+  opacity: 0.9;
+  text-decoration: none;
+}
+
+/* Job Cards */
+.job-card {
+  padding: 16px;
+  margin-bottom: 12px;
+  background: var(--white);
+  border-radius: 12px;
+  border-left: 6px solid var(--navy);
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid var(--gray-mid);
+}
+
+.job-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+}
+
+.job-card.complete {
+  background: #f0fdf4;
+  opacity: 0.8;
+}
+
+.job-card-label {
+  font-size: 10px;
+  color: var(--gray-text);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.job-card-title {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--navy);
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.job-card-meta {
+  font-size: 14px;
+  color: var(--gray-text);
+  margin-top: 6px;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal {
+  background: var(--white);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal h2 {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+/* Form Elements */
+input, select, textarea {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid var(--gray-mid);
+  border-radius: 8px;
+  font-size: 16px;
+  font-family: 'Inter', sans-serif;
+  margin-bottom: 12px;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--navy);
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--navy);
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  background: var(--gray-light);
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.tab {
+  flex: 1;
+  padding: 10px;
+  text-align: center;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: var(--gray-text);
+}
+
+.tab.active {
+  background: var(--navy);
+  color: white;
+}
+
+/* Badge */
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-red { background: #FEE2E2; color: #991B1B; }
+.badge-green { background: #D1FAE5; color: #065F46; }
+.badge-yellow { background: #FEF3C7; color: #92400E; }
+.badge-blue { background: #DBEAFE; color: #1E40AF; }
+
+/* Loading */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--gray-text);
+}
+
+/* Back Button */
+.back-btn {
+  background: transparent;
+  color: var(--navy);
+  padding: 8px 16px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.back-btn:hover {
+  background: var(--gray-light);
+  transform: none;
+  box-shadow: none;
+}

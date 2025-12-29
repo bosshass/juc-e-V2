@@ -1,0 +1,1660 @@
+import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
+import { useState, useEffect } from 'react';
+
+function AppContent() {
+  const APP_VERSION = '1.2';
+
+  useEffect(() => {
+    const storedVersion = localStorage.getItem('appVersion');
+    if (storedVersion !== APP_VERSION) {
+      localStorage.clear();
+      localStorage.setItem('appVersion', APP_VERSION);
+      window.location.reload();
+    }
+  }, []);
+
+  const [accessToken, setAccessToken] = useState(() => {
+  return localStorage.getItem('googleAccessToken');
+});
+const [userEmail, setUserEmail] = useState(() => {
+  return localStorage.getItem('googleUserEmail');
+});
+  const [showJobs, setShowJobs] = useState(false);
+  const [todaysJobs, setTodaysJobs] = useState([]);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [showReturnVisit, setShowReturnVisit] = useState(false);
+  const [returnVisitJob, setReturnVisitJob] = useState(null);
+  const [filterType, setFilterType] = useState('all');
+  const [showActions, setShowActions] = useState(false);
+  const [completedActions, setCompletedActions] = useState([]);
+  const [dayView, setDayView] = useState('today');
+  const [showPastJobs, setShowPastJobs] = useState(false);
+  const [pastJobsDate, setPastJobsDate] = useState('');
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [editedNotes, setEditedNotes] = useState('');
+
+  // Job Completion Form State
+  const [showCompletionForm, setShowCompletionForm] = useState(false);
+  const [completionJob, setCompletionJob] = useState(null);
+  const [completionMode, setCompletionMode] = useState('complete'); // 'complete' or 'sales'
+  const [completionData, setCompletionData] = useState({
+    timeIn: '',
+    timeOut: '',
+    materials: '',
+    billingNotes: ''
+  });
+  const [showTasks, setShowTasks] = useState(false);
+  const [tasks, setTasks] = useState([]);
+  const weeklyActions = [
+    { id: 1, text: 'Add customer name to Thursday "Confirmed" calendar entry', priority: 'high' },
+    { id: 2, text: 'Schedule Raintree - Monday 8am-5pm (Austin)', priority: 'high' },
+    { id: 3, text: 'Verify Dale Thompson Tuesday OR move Heiken there', priority: 'medium' },
+    { id: 4, text: 'Change Jeanneret Wed from Sara task to confirmed work', priority: 'medium' }
+  ];
+
+  const quickLinks = [
+    { name: 'CMS', url: 'https://www.cms-compass.com/Account/Login?ReturnUrl=%2FLocations%3FlocationId%3D500110669%26systemId%3D500118591#/Contacts', color: '#dc2626' },
+    { name: 'Alula', url: 'https://www.alulaconnect.com/en/auth/login?redirect_to=%2Fen%2Fd%2Fdashboard%2Fbusiness-insights', color: '#2563eb' },
+    { name: 'Slack', url: 'https://highsidesecurity.slack.com', color: '#4a154b' }
+  ];
+
+  const login = useGoogleLogin({
+    onSuccess: async (response) => {
+      setAccessToken(response.access_token);
+      
+      const userInfo = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${response.access_token}` }
+      });
+      const userData = await userInfo.json();
+      setUserEmail(userData.email);
+      localStorage.setItem('googleAccessToken', response.access_token);
+      localStorage.setItem('googleUserEmail', userData.email);
+
+      alert('Logged in as ' + userData.email);
+    },
+    scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.email'
+  });
+
+  const toggleAction = (actionId) => {
+    if (completedActions.includes(actionId)) {
+      setCompletedActions(completedActions.filter(id => id !== actionId));
+    } else {
+      setCompletedActions([...completedActions, actionId]);
+    }
+  };
+const SHEET_ID = '1aT7qG75PNhPQ6o-q81RHjYokOw1H-Z8bgZDQGS1pseg';
+
+  const fetchTasks = async () => {
+    try {
+      const response = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/A2:F100`,
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
+      );
+      const data = await response.json();
+      if (data.values) {
+        const userName = userEmail.toLowerCase().includes('austin') ? 'Austin' 
+          : userEmail.toLowerCase().includes('info') ? 'Sara'
+          : userEmail.toLowerCase().includes('jr') ? 'JR'
+          : userEmail.toLowerCase().includes('shana') ? 'Shana' : 'Unknown';
+        
+        const myTasks = data.values
+          .map((row, index) => ({
+            rowIndex: index + 2,
+            text: row[0] || '',
+            priority: row[1] || '',
+            role: row[2] || '',
+            assignedTo: row[3] || '',
+            completedBy: row[4] || '',
+            completedAt: row[5] || ''
+          }))
+          .filter(task => 
+            !task.completedBy && 
+            (task.assignedTo === userName || task.assignedTo === 'All' || (userName === 'Sara' && !task.assignedTo))
+          );
+        setTasks(myTasks);
+      }
+      setShowTasks(true);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      alert('Error loading tasks');
+    }
+  };
+
+  const completeTask = async (task) => {
+    const userName = userEmail.toLowerCase().includes('austin') ? 'Austin' 
+      : userEmail.toLowerCase().includes('info') ? 'Sara'
+      : userEmail.toLowerCase().includes('jr') ? 'JR'
+      : userEmail.toLowerCase().includes('shana') ? 'Shana' : 'Unknown';
+    
+    const now = new Date().toLocaleString();
+    
+    try {
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/E${task.rowIndex}:F${task.rowIndex}?valueInputOption=USER_ENTERED`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            values: [[userName, now]]
+          })
+        }
+      );
+      alert('Task completed! ✅');
+      setTasks(tasks.filter(t => t.rowIndex !== task.rowIndex));
+    } catch (error) {
+      console.error('Error completing task:', error);
+      alert('Error completing task');
+    }
+  };
+  const createServiceCall = async () => {
+    const customerName = prompt('Customer name:');
+    if (!customerName) return;
+    
+    const phone = prompt('Customer phone:');
+    const address = prompt('Address:');
+    const issue = prompt('Issue/Notes:');
+    
+    const event = {
+      summary: `[SERVICE] - QUEUE - ${customerName}`,
+      description: `Customer: ${customerName}\nPhone: ${phone || 'N/A'}\nAddress: ${address || 'N/A'}\nIssue: ${issue || 'N/A'}\n\nLogged from mobile app by ${userEmail}`,
+      location: address || '',
+      start: {
+        dateTime: new Date().toISOString(),
+        timeZone: 'America/Denver'
+      },
+      end: {
+        dateTime: new Date(Date.now() + 2*60*60*1000).toISOString(),
+        timeZone: 'America/Denver'
+      }
+    };
+
+    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/de3d433f5c6c6a85f5474648e005cac43529d5bed542b74675a37a30cf0ece91@group.calendar.google.com/events', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(event)
+    });
+
+    if (response.ok) {
+      alert('Service call logged! ✅');
+    } else {
+      alert('Error: ' + response.status);
+    }
+  };
+
+  const getCalendarColor = (calendarId) => {
+    const colors = {
+      'c_c84c0a24e2a7386cb519b21569fbb4b17a19214ce33744a63e06394f8c57339f@group.calendar.google.com': '#16a34a',
+      'drhhsscalendar@gmail.com': '#9333ea',
+      'do0i4f1jqbbakd72mpgpll9m6g@group.calendar.google.com': '#2563eb',
+      'drhservicetech1@gmail.com': '#0891b2',
+      'd40cddebd7123740ee0eece402546f83806bce96424423535bb15f6ed5abb7c6@group.calendar.google.com': '#f59e0b',
+      'de3d433f5c6c6a85f5474648e005cac43529d5bed542b74675a37a30cf0ece91@group.calendar.google.com': '#dc2626'
+    };
+    return colors[calendarId] || '#6b7280';
+  };
+
+  const getCalendarName = (calendarId) => {
+    const names = {
+      'c_c84c0a24e2a7386cb519b21569fbb4b17a19214ce33744a63e06394f8c57339f@group.calendar.google.com': 'Sales Call',
+      'drhhsscalendar@gmail.com': 'Return Visit',
+      'do0i4f1jqbbakd72mpgpll9m6g@group.calendar.google.com': 'JR Appointment',
+      'drhservicetech1@gmail.com': 'DRH Tech 1',
+      'd40cddebd7123740ee0eece402546f83806bce96424423535bb15f6ed5abb7c6@group.calendar.google.com': 'Installation',
+      'de3d433f5c6c6a85f5474648e005cac43529d5bed542b74675a37a30cf0ece91@group.calendar.google.com': 'Service Queue'
+    };
+    return names[calendarId] || 'Event';
+  };
+
+  const extractPhone = (job) => {
+    const desc = job.description || '';
+    const phoneMatch = desc.match(/Phone:\s*([^<\n]+)/i);
+    return phoneMatch ? phoneMatch[1].trim() : null;
+  };
+
+  const extractAddress = (job) => {
+    if (job.location) return job.location;
+    const desc = job.description || '';
+    const addressMatch = desc.match(/Address:\s*([^<\n]+)/i);
+    return addressMatch ? addressMatch[1].trim() : null;
+  };
+
+  const updateJobNotes = async (job, newNotes) => {
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(job.calendarId)}/events/${job.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            description: newNotes
+          })
+        }
+      );
+      
+      if (response.ok) {
+        alert('Notes updated! ✅');
+        setEditingNotes(false);
+        const updatedEvent = await response.json();
+        setSelectedJob(updatedEvent);
+      } else {
+        alert('Error updating notes');
+      }
+    } catch (error) {
+      console.error('Failed to update notes:', error);
+      alert('Failed to update notes');
+    }
+  };
+
+
+
+
+  // Opens the completion form instead of immediately marking complete
+  const openCompletionForm = (job, mode = 'complete') => {
+    setCompletionJob(job);
+    setCompletionMode(mode);
+    setCompletionData({
+      timeIn: '',
+      timeOut: '',
+      materials: '',
+      billingNotes: ''
+    });
+    setShowCompletionForm(true);
+  };
+
+  // Actually submits the completion with form data
+  const submitCompletion = async () => {
+    if (!completionJob) return;
+
+    const completionDetails = completionMode === 'sales' 
+    ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📞 SALES FOLLOW-UP NEEDED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📅 Date: ${new Date().toLocaleDateString()}
+👤 Flagged by: ${userEmail}
+⏰ Time In: ${completionData.timeIn || 'Not recorded'}
+⏰ Time Out: ${completionData.timeOut || 'Not recorded'}
+
+📦 MATERIALS USED:
+${completionData.materials || 'None listed'}
+
+💰 BILLING NOTES:
+${completionData.billingNotes || 'None'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+    : `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ JOB COMPLETED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📅 Date: ${new Date().toLocaleDateString()}
+👤 Completed by: ${userEmail}
+⏰ Time In: ${completionData.timeIn || 'Not recorded'}
+⏰ Time Out: ${completionData.timeOut || 'Not recorded'}
+
+📦 MATERIALS USED:
+${completionData.materials || 'None listed'}
+
+💰 BILLING NOTES:
+${completionData.billingNotes || 'None'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    const updatedEvent = {
+      summary: completionJob.summary.includes('[COMPLETE]') ? completionJob.summary : `[COMPLETE] ${completionJob.summary}`,
+      description: `${completionJob.description || ''}${completionDetails}`
+    };
+
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(completionJob.calendarId)}/events/${completionJob.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(updatedEvent)
+        }
+      );
+
+      if (response.ok) {
+        alert('Job marked complete! ✅');
+        setShowCompletionForm(false);
+        setCompletionJob(null);
+        setSelectedJob(null);
+        await viewJobs(dayView);
+      } else {
+        alert('Error marking complete');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error marking complete');
+    }
+  };
+  const viewJobs = async (view) => {
+    let startDate = new Date();
+    let endDate = new Date();
+    
+    if (view === 'today') {
+      startDate.setHours(0,0,0,0);
+      endDate.setHours(23,59,59,999);
+    } else if (view === 'tomorrow') {
+      startDate.setDate(startDate.getDate() + 1);
+      startDate.setHours(0,0,0,0);
+      endDate.setDate(endDate.getDate() + 1);
+      endDate.setHours(23,59,59,999);
+    } else if (view === 'week') {
+      startDate.setHours(0,0,0,0);
+      endDate.setDate(endDate.getDate() + 7);
+      endDate.setHours(23,59,59,999);
+    }
+
+    // Fetch all calendars the user has access to
+    let calendars = [];
+    try {
+      const calListResponse = await fetch(
+        'https://www.googleapis.com/calendar/v3/users/me/calendarList',
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
+      );
+      const calListData = await calListResponse.json();
+      if (calListData.items) {
+        calendars = calListData.items
+          .filter(cal => cal.id !== userEmail)
+          .map(cal => cal.id);
+      }
+    } catch (error) {
+      console.error('Error fetching calendar list:', error);
+    }
+
+    let allEvents = [];
+
+    for (const calId of calendars) {
+      try {
+        const response = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?timeMin=${startDate.toISOString()}&timeMax=${endDate.toISOString()}&orderBy=startTime&singleEvents=true`,
+          {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          }
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.items) {
+            const eventsWithCal = data.items.map(event => ({
+              ...event,
+              calendarId: calId
+            }));
+            allEvents = [...allEvents, ...eventsWithCal];
+          }
+        }
+      } catch (error) {
+        console.error(`Error fetching calendar:`, error);
+      }
+    }
+
+    allEvents.sort((a, b) => {
+      const aTime = new Date(a.start.dateTime || a.start.date);
+      const bTime = new Date(b.start.dateTime || b.start.date);
+      return aTime - bTime;
+    });
+
+    setTodaysJobs(allEvents);
+    setDayView(view);
+    setShowJobs(true);
+  };
+
+  const scheduleReturnVisit = async (job) => {
+    setReturnVisitJob(job);
+    setShowReturnVisit(true);
+  };
+
+  const submitReturnVisit = async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const returnDate = formData.get('returnDate');
+    const returnTime = formData.get('returnTime');
+    const notes = formData.get('notes');
+
+    const returnDateTime = new Date(returnDate + 'T' + returnTime);
+    const endDateTime = new Date(returnDateTime.getTime() + 2*60*60*1000);
+
+    const phone = extractPhone(returnVisitJob) || 'N/A';
+    const address = extractAddress(returnVisitJob) || 'N/A';
+
+    const event = {
+      summary: `[RETURN] - ${returnVisitJob.summary.replace('[SERVICE] - ', '').replace('[INSTALLATION] - ', '').replace('[SALES] - ', '').replace('QUEUE - ', '')}`,
+      description: `RETURN VISIT\n\nOriginal job: ${returnVisitJob.summary}\nOriginal date: ${new Date(returnVisitJob.start.dateTime || returnVisitJob.start.date).toLocaleDateString()}\n\nCustomer Phone: ${phone}\nAddress: ${address}\n\nReason for return: ${notes}\n\nScheduled by: ${userEmail}`,
+      location: address !== 'N/A' ? address : '',
+      start: {
+        dateTime: returnDateTime.toISOString(),
+        timeZone: 'America/Denver'
+      },
+      end: {
+        dateTime: endDateTime.toISOString(),
+        timeZone: 'America/Denver'
+      }
+    };
+
+    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/drhhsscalendar@gmail.com/events', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(event)
+    });
+
+    if (response.ok) {
+      alert('Return visit scheduled! ✅');
+      setShowReturnVisit(false);
+      setReturnVisitJob(null);
+    } else {
+      alert('Error: ' + response.status);
+    }
+  };
+
+  const getFilteredJobs = () => {
+    if (filterType === 'all') return todaysJobs;
+    
+    const filterMap = {
+      'sales': 'Sales Call',
+      'service': 'Service',
+      'install': 'Installation',
+      'return': 'Return Visit'
+    };
+    
+    return todaysJobs.filter(job => 
+      getCalendarName(job.calendarId).toLowerCase().includes(filterMap[filterType].toLowerCase()) ||
+      job.summary.toLowerCase().includes(filterMap[filterType].toLowerCase())
+    );
+  };
+
+  const QuickLinksBar = () => (
+    <div style={{
+      position: 'fixed',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: '#1f2937',
+      padding: '10px',
+      display: 'flex',
+      justifyContent: 'space-around',
+      boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
+      zIndex: 1000
+    }}>
+      {quickLinks.map((link, index) => (
+    <a  
+          key={index}
+          href={link.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            flex: 1,
+            margin: '0 5px',
+            padding: '12px',
+            backgroundColor: link.color,
+            color: 'white',
+            textDecoration: 'none',
+            borderRadius: '5px',
+            textAlign: 'center',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}
+        >
+          {link.name}
+        </a>
+      ))}
+    </div>
+  );
+
+  if (!accessToken) {
+    return (
+      <div style={{ 
+        padding: '20px',
+        maxWidth: '400px',
+        margin: '100px auto',
+        textAlign: 'center'
+      }}>
+        <h1>DRH Security</h1>
+        <p style={{ fontSize: '18px', marginBottom: '20px' }}>
+          Welcome!
+        </p>
+        <p style={{ fontSize: '14px', color: '#666', marginBottom: '30px' }}>
+          {'false' 
+            ? 'Connect to see your assigned jobs' 
+            : 'Connect to access calendar and manage schedule'}
+        </p>
+        <button 
+          onClick={login}
+          style={{
+            padding: '20px 40px',
+            fontSize: '18px',
+            backgroundColor: '#4285f4',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer'
+          }}
+        >
+          Sign in with Google
+        </button>
+      </div>
+    );
+  }
+
+
+  // Past Jobs View
+  if (showPastJobs) {
+    return (
+      <div style={{ padding: "20px", paddingBottom: "80px", maxWidth: "400px", margin: "0 auto", fontFamily: "Arial" }}>
+        <button onClick={() => setShowPastJobs(false)} style={{ marginBottom: "20px", padding: "10px", backgroundColor: "#666", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}>← Back</button>
+        <h2>🕐 Past Jobs</h2>
+        <p style={{ color: "#666", marginBottom: "15px" }}>Select a date to view jobs:</p>
+        <input type="date" value={pastJobsDate} onChange={(e) => setPastJobsDate(e.target.value)} style={{ width: "100%", padding: "15px", fontSize: "18px", marginBottom: "15px", borderRadius: "5px", border: "1px solid #ccc" }} />
+        <button onClick={async () => { if (!pastJobsDate) return; const d = new Date(pastJobsDate + "T00:00:00"); const start = new Date(d); start.setHours(0,0,0,0); const end = new Date(d); end.setHours(23,59,59,999); let cals = []; try { const r = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", { headers: { Authorization: "Bearer " + accessToken }}); const data = await r.json(); if (data.items) cals = data.items.filter(c => c.id !== userEmail).map(c => c.id); } catch(e) {} let events = []; for (const cal of cals) { try { const r = await fetch("https://www.googleapis.com/calendar/v3/calendars/" + encodeURIComponent(cal) + "/events?timeMin=" + start.toISOString() + "\&timeMax=" + end.toISOString() + "\&orderBy=startTime\&singleEvents=true", { headers: { Authorization: "Bearer " + accessToken }}); if (r.ok) { const data = await r.json(); if (data.items) events = [...events, ...data.items.map(e => ({...e, calendarId: cal}))]; }} catch(e) {}} events.sort((a,b) => new Date(a.start.dateTime || a.start.date) - new Date(b.start.dateTime || b.start.date)); setTodaysJobs(events); setShowPastJobs(false); setShowJobs(true); setDayView("custom"); }} style={{ width: "100%", padding: "15px", fontSize: "18px", backgroundColor: "#2563eb", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}>Load Jobs</button>
+      </div>
+    );
+  }
+
+if (showTasks) {
+    return (
+      <div style={{ 
+        padding: '20px',
+        paddingBottom: '80px',
+        maxWidth: '400px',
+        margin: '0 auto',
+        fontFamily: 'Arial'
+      }}>
+        <button 
+          onClick={() => setShowTasks(false)}
+          style={{
+            marginBottom: '20px',
+            padding: '10px',
+            backgroundColor: '#666',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer'
+          }}
+        >
+          ← Back
+        </button>
+
+        <h2>📋 Today's Tasks</h2>
+        <p style={{ color: '#666', marginBottom: '20px' }}>
+          {tasks.length} task{tasks.length !== 1 ? 's' : ''} assigned to you
+        </p>
+
+        {tasks.length === 0 ? (
+          <div style={{
+            padding: '40px',
+            textAlign: 'center',
+            backgroundColor: '#f0fdf4',
+            borderRadius: '10px'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '10px' }}>🎉</div>
+            <div style={{ fontSize: '18px', color: '#065f46' }}>All caught up!</div>
+          </div>
+        ) : (
+          tasks.map((task) => (
+            <div
+              key={task.rowIndex}
+              style={{
+                padding: '15px',
+                marginBottom: '10px',
+                backgroundColor: '#fff',
+                border: `2px solid ${task.priority === 'HIGH' ? '#dc2626' : '#f59e0b'}`,
+                borderRadius: '8px'
+              }}
+            >
+              <div style={{
+                fontSize: '12px',
+                color: task.priority === 'HIGH' ? '#dc2626' : '#f59e0b',
+                fontWeight: 'bold',
+                marginBottom: '5px'
+              }}>
+                {task.priority === 'HIGH' ? '🔴 HIGH PRIORITY' : '🟡 MEDIUM'}
+              </div>
+              <div style={{ fontSize: '16px', marginBottom: '10px' }}>
+                {task.text}
+              </div>
+              <button
+                onClick={() => completeTask(task)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  backgroundColor: '#16a34a',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                ✅ Mark Complete
+              </button>
+            </div>
+          ))
+        )}
+
+        <QuickLinksBar />
+      </div>
+    );
+  }
+  if (showActions) {
+    const remaining = weeklyActions.length - completedActions.length;
+    
+    return (
+      <div style={{ 
+        padding: '20px',
+        paddingBottom: '80px',
+        maxWidth: '400px',
+        margin: '0 auto',
+        fontFamily: 'Arial'
+      }}>
+        <button 
+          onClick={() => setShowActions(false)}
+          style={{
+            marginBottom: '20px',
+            padding: '10px',
+            backgroundColor: '#666',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer'
+          }}
+        >
+          ← Back
+        </button>
+
+        <div style={{
+          backgroundColor: '#fef3c7',
+          border: '2px solid #f59e0b',
+          borderRadius: '10px',
+          padding: '20px',
+          marginBottom: '20px'
+        }}>
+          <h2 style={{ margin: '0 0 10px 0', color: '#92400e' }}>⚠️ THIS WEEK'S PRIORITY</h2>
+          <p style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: '#92400e' }}>
+            Fix {remaining} calendar {remaining === 1 ? 'item' : 'items'} = Prevent $10K loss
+          </p>
+        </div>
+
+        <h3 style={{ marginBottom: '15px' }}>Actions Needed:</h3>
+
+        {weeklyActions.map((action) => {
+          const isComplete = completedActions.includes(action.id);
+          return (
+            <div
+              key={action.id}
+              onClick={() => toggleAction(action.id)}
+              style={{
+                padding: '15px',
+                marginBottom: '10px',
+                backgroundColor: isComplete ? '#f0fdf4' : '#fff',
+                border: `2px solid ${action.priority === 'high' ? '#dc2626' : '#f59e0b'}`,
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'flex-start',
+                opacity: isComplete ? 0.6 : 1
+              }}
+            >
+              <div style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                border: '2px solid #666',
+                backgroundColor: isComplete ? '#16a34a' : 'white',
+                marginRight: '15px',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '16px'
+              }}>
+                {isComplete && '✓'}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontSize: '12px',
+                  color: action.priority === 'high' ? '#dc2626' : '#f59e0b',
+                  fontWeight: 'bold',
+                  marginBottom: '5px',
+                  textTransform: 'uppercase'
+                }}>
+                  {action.priority === 'high' ? '🔴 HIGH PRIORITY' : '🟡 MEDIUM'}
+                </div>
+                <div style={{
+                  fontSize: '16px',
+                  textDecoration: isComplete ? 'line-through' : 'none'
+                }}>
+                  {action.text}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {completedActions.length === weeklyActions.length && (
+          <div style={{
+            marginTop: '30px',
+            padding: '20px',
+            backgroundColor: '#d1fae5',
+            borderRadius: '10px',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '10px' }}>🎉</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#065f46' }}>
+              All Actions Complete!
+            </div>
+            <div style={{ fontSize: '16px', color: '#065f46', marginTop: '10px' }}>
+              Calendar is fixed. Ready for a $15-20K week!
+            </div>
+          </div>
+        )}
+
+        <QuickLinksBar />
+      </div>
+    );
+  }
+
+  if (showReturnVisit && returnVisitJob) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const minDate = tomorrow.toISOString().split('T')[0];
+
+    return (
+      <div style={{ 
+        padding: '20px',
+        paddingBottom: '80px',
+        maxWidth: '400px',
+        margin: '0 auto',
+        fontFamily: 'Arial'
+      }}>
+        <button 
+          onClick={() => {
+            setShowReturnVisit(false);
+            setReturnVisitJob(null);
+          }}
+          style={{
+            marginBottom: '20px',
+            padding: '10px',
+            backgroundColor: '#666',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer'
+          }}
+        >
+          ← Cancel
+        </button>
+
+        <h2>Schedule Return Visit</h2>
+        
+        <div style={{
+          padding: '15px',
+          backgroundColor: '#f0f0f0',
+          borderRadius: '5px',
+          marginBottom: '20px',
+          borderLeft: `4px solid ${getCalendarColor(returnVisitJob.calendarId)}`
+        }}>
+          <div style={{ fontWeight: 'bold' }}>{returnVisitJob.summary}</div>
+          <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+            Original: {new Date(returnVisitJob.start.dateTime || returnVisitJob.start.date).toLocaleDateString()}
+          </div>
+        </div>
+
+        <form onSubmit={submitReturnVisit}>
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+              Return Date:
+            </label>
+            <input 
+              type="date" 
+              name="returnDate"
+              min={minDate}
+              required
+              style={{
+                width: '100%',
+                padding: '10px',
+                fontSize: '16px',
+                borderRadius: '5px',
+                border: '1px solid #ccc'
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+              Return Time:
+            </label>
+            <input 
+              type="time" 
+              name="returnTime"
+              defaultValue="09:00"
+              required
+              style={{
+                width: '100%',
+                padding: '10px',
+                fontSize: '16px',
+                borderRadius: '5px',
+                border: '1px solid #ccc'
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+              Reason for Return:
+            </label>
+            <textarea 
+              name="notes"
+              rows="4"
+              placeholder="What needs to be done?"
+              required
+              style={{
+                width: '100%',
+                padding: '10px',
+                fontSize: '16px',
+                borderRadius: '5px',
+                border: '1px solid #ccc',
+                fontFamily: 'Arial'
+              }}
+            />
+          </div>
+
+          <button 
+            type="submit"
+            style={{
+              width: '100%',
+              padding: '15px',
+              fontSize: '18px',
+              backgroundColor: '#9333ea',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer'
+            }}
+          >
+            Schedule Return Visit
+          </button>
+        </form>
+
+        <QuickLinksBar />
+      </div>
+    );
+}
+
+
+  // Job Completion Form Modal
+  if (showCompletionForm && completionJob) {
+    return (
+      <div style={{ 
+        padding: '20px',
+        paddingBottom: '80px',
+        maxWidth: '400px',
+        margin: '0 auto',
+        fontFamily: 'Arial'
+      }}>
+        <button 
+          onClick={() => {
+            setShowCompletionForm(false);
+            setCompletionJob(null);
+          }}
+          style={{
+            marginBottom: '20px',
+            padding: '10px',
+            backgroundColor: '#666',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer'
+          }}
+        >
+          ← Cancel
+        </button>
+
+        <h2>{completionMode === 'sales' ? 'Sales Follow-up' : 'Complete Job'}</h2>
+        
+        <div style={{
+          padding: '15px',
+          backgroundColor: '#f0f0f0',
+          borderRadius: '5px',
+          marginBottom: '20px',
+          borderLeft: `4px solid ${getCalendarColor(completionJob.calendarId)}`
+        }}>
+          <div style={{ fontWeight: 'bold' }}>{completionJob.summary}</div>
+        </div>
+
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            ⏰ Time In:
+          </label>
+          <input 
+            type="time" 
+            value={completionData.timeIn}
+            onChange={(e) => setCompletionData({...completionData, timeIn: e.target.value})}
+            style={{
+              width: '100%',
+              padding: '10px',
+              fontSize: '16px',
+              borderRadius: '5px',
+              border: '1px solid #ccc'
+            }}
+          />
+        </div>
+
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            ⏰ Time Out:
+          </label>
+          <input 
+            type="time" 
+            value={completionData.timeOut}
+            onChange={(e) => setCompletionData({...completionData, timeOut: e.target.value})}
+            style={{
+              width: '100%',
+              padding: '10px',
+              fontSize: '16px',
+              borderRadius: '5px',
+              border: '1px solid #ccc'
+            }}
+          />
+        </div>
+
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            📦 Materials Used:
+          </label>
+          <textarea 
+            value={completionData.materials}
+            onChange={(e) => setCompletionData({...completionData, materials: e.target.value})}
+            rows="3"
+            placeholder="List parts, equipment, supplies used..."
+            style={{
+              width: '100%',
+              padding: '10px',
+              fontSize: '16px',
+              borderRadius: '5px',
+              border: '1px solid #ccc',
+              fontFamily: 'Arial'
+            }}
+          />
+        </div>
+
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            💰 Billing Notes:
+          </label>
+          <textarea 
+            value={completionData.billingNotes}
+            onChange={(e) => setCompletionData({...completionData, billingNotes: e.target.value})}
+            rows="3"
+            placeholder="What to bill, special charges, issues..."
+            style={{
+              width: '100%',
+              padding: '10px',
+              fontSize: '16px',
+              borderRadius: '5px',
+              border: '1px solid #ccc',
+              fontFamily: 'Arial'
+            }}
+          />
+        </div>
+
+        <button 
+          onClick={submitCompletion}
+          style={{
+            width: '100%',
+            padding: '15px',
+            fontSize: '18px',
+            backgroundColor: '#16a34a',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+         {completionMode === 'sales' ? '📞 Submit for Sales Follow-up' : '✅ Submit Completion'}        </button>
+
+        <QuickLinksBar />
+      </div>
+    );
+  }
+  if (selectedJob) {
+    const phone = extractPhone(selectedJob);
+    const address = extractAddress(selectedJob);
+    const isComplete = selectedJob.summary.includes('[COMPLETE]');
+
+    return (
+      <div style={{ 
+        padding: '20px',
+        paddingBottom: '80px',
+        maxWidth: '400px',
+        margin: '0 auto',
+        fontFamily: 'Arial'
+      }}>
+        <button 
+          onClick={() => setSelectedJob(null)}
+          style={{
+            marginBottom: '20px',
+            padding: '10px',
+            backgroundColor: '#666',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer'
+          }}
+        >
+          ← Back to Jobs
+        </button>
+        
+        <div style={{
+          padding: '20px',
+          backgroundColor: '#f9f9f9',
+          borderRadius: '10px',
+          borderLeft: `6px solid ${getCalendarColor(selectedJob.calendarId)}`
+        }}>
+          <div style={{ 
+            fontSize: '12px', 
+            color: '#666', 
+            marginBottom: '10px',
+            fontWeight: 'bold',
+            textTransform: 'uppercase'
+          }}>
+            {getCalendarName(selectedJob.calendarId)}
+            {isComplete && <span style={{ marginLeft: '10px', color: '#16a34a' }}>✅ COMPLETE</span>}
+          </div>
+          
+          <h2 style={{ marginTop: 0, marginBottom: '20px' }}>{selectedJob.summary}</h2>
+          
+          <div style={{ marginBottom: '15px' }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Time:</div>
+            <div style={{ fontSize: '16px' }}>
+              {new Date(selectedJob.start.dateTime || selectedJob.start.date).toLocaleString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+              })}
+            </div>
+          </div>
+
+          {phone && (
+            <div style={{ marginBottom: '15px' }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Phone:</div>
+              <a 
+                href={`tel:${phone}`}
+                style={{
+                  fontSize: '18px',
+                  color: '#2563eb',
+                  textDecoration: 'none',
+                  display: 'block',
+                  padding: '10px',
+                  backgroundColor: '#eff6ff',
+                  borderRadius: '5px',
+                  textAlign: 'center'
+                }}
+              >
+                📞 {phone}
+              </a>
+            </div>
+          )}
+
+          {address && (
+            <div style={{ marginBottom: '15px' }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Address:</div>
+              <a 
+                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontSize: '16px',
+                  color: '#2563eb',
+                  textDecoration: 'none',
+                  display: 'block',
+                  padding: '10px',
+                  backgroundColor: '#eff6ff',
+                  borderRadius: '5px',
+                  textAlign: 'center'
+                }}
+              >
+                🗺️ {address}<br/>
+                <span style={{ fontSize: '14px' }}>Tap for directions</span>
+              </a>
+            </div>
+          )}
+          
+          {selectedJob.description && (
+            <div style={{ marginBottom: '15px' }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '5px' 
+              }}>
+                <div style={{ fontWeight: 'bold' }}>Notes:</div>
+                {!editingNotes && !isComplete && (
+                  <button
+                    onClick={() => {
+                      setEditingNotes(true);
+                      setEditedNotes(selectedJob.description);
+                    }}
+                    style={{
+                      padding: '5px 15px',
+                      fontSize: '12px',
+                      backgroundColor: '#2563eb',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+              
+              {editingNotes ? (
+                <>
+                  <textarea
+                    value={editedNotes}
+                    onChange={(e) => setEditedNotes(e.target.value)}
+                    style={{
+                      width: '100%',
+                      minHeight: '150px',
+                      padding: '10px',
+                      fontSize: '14px',
+                      borderRadius: '5px',
+                      border: '1px solid #e5e7eb',
+                      fontFamily: 'inherit',
+                      resize: 'vertical'
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                    <button
+                      onClick={() => updateJobNotes(selectedJob, editedNotes)}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        backgroundColor: '#16a34a',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '5px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      💾 Save Notes
+                    </button>
+                    <button
+                      onClick={() => setEditingNotes(false)}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        backgroundColor: '#6b7280',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '5px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div style={{ 
+                  whiteSpace: 'pre-wrap', 
+                  backgroundColor: '#fff',
+                  padding: '10px',
+                  borderRadius: '5px',
+                  fontSize: '14px',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <div dangerouslySetInnerHTML={{ __html: selectedJob.description || "" }} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {!isComplete && (
+            <button 
+onClick={() => openCompletionForm(selectedJob)}              style={{
+                width: '100%',
+                marginBottom: '10px',
+                padding: '15px',
+                fontSize: '16px',
+                backgroundColor: '#16a34a',
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              ✅ Mark Complete
+            </button>
+          )}
+           <button 
+            onClick={() => openCompletionForm(selectedJob, 'sales')}
+            style={{
+              width: '100%',
+              marginTop: '10px',
+	      marginBottom: '10px',
+              padding: '15px',
+              fontSize: '16px',
+              backgroundColor: '#f59e0b',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            📞 Sales Follow-up Needed
+          </button>
+          <button 
+            onClick={() => {
+              setSelectedJob(null);
+              scheduleReturnVisit(selectedJob);
+            }}
+             style={{
+              width: '100%',
+              marginTop: '10px',
+              padding: '15px',
+              fontSize: '16px',
+              backgroundColor: '#9333ea',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer'
+            }}
+
+          >     📅 Schedule Return Visit
+          </button>
+        </div>
+       
+        <QuickLinksBar />
+      </div>
+    );
+  }
+
+  if (showJobs) {
+    const filteredJobs = getFilteredJobs();
+    
+    const getDateHeader = (job) => {
+      const jobDate = new Date(job.start.dateTime || job.start.date);
+      return jobDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    };
+
+    let jobsByDate = {};
+    if (dayView === 'week') {
+      filteredJobs.forEach(job => {
+        const dateKey = getDateHeader(job);
+        if (!jobsByDate[dateKey]) {
+          jobsByDate[dateKey] = [];
+        }
+        jobsByDate[dateKey].push(job);
+      });
+    }
+
+    return (
+      <div style={{ 
+        padding: '20px',
+        paddingBottom: '80px',
+        maxWidth: '400px',
+        margin: '0 auto',
+        fontFamily: 'Arial'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ margin: 0 }}>
+            {dayView === 'today' && "Today's Jobs"}
+            {dayView === 'tomorrow' && "Tomorrow's Jobs"}
+            {dayView === 'week' && "This Week"}
+          </h2>
+          <button 
+            onClick={() => {
+              setShowJobs(false);
+              setFilterType('all');
+            }}
+            style={{
+              padding: '10px',
+              backgroundColor: '#666',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer'
+            }}
+          >
+            ← Back
+          </button>
+        </div>
+
+        {dayView !== 'week' && (
+          <div style={{ 
+            display: 'flex', 
+            gap: '10px', 
+            marginBottom: '20px'
+          }}>
+            <button
+              onClick={() => viewJobs('today')}
+              style={{
+                flex: 1,
+                padding: '12px',
+                fontSize: '14px',
+                backgroundColor: dayView === 'today' ? '#2563eb' : '#e5e7eb',
+                color: dayView === 'today' ? 'white' : '#374151',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontWeight: dayView === 'today' ? 'bold' : 'normal'
+              }}
+            >
+              Today
+            </button>
+            <button
+              onClick={() => viewJobs('tomorrow')}
+              style={{
+                flex: 1,
+                padding: '12px',
+                fontSize: '14px',
+                backgroundColor: dayView === 'tomorrow' ? '#2563eb' : '#e5e7eb',
+                color: dayView === 'tomorrow' ? 'white' : '#374151',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontWeight: dayView === 'tomorrow' ? 'bold' : 'normal'
+              }}
+            >
+              Tomorrow
+            </button>
+          </div>
+        )}
+
+        <div style={{ 
+          display: 'flex', 
+          gap: '5px', 
+          marginBottom: '20px',
+          overflowX: 'auto',
+          paddingBottom: '5px'
+        }}>
+          {['all', 'install', 'service', 'sales', 'return'].map(type => (
+            <button
+              key={type}
+              onClick={() => setFilterType(type)}
+              style={{
+                padding: '8px 12px',
+                fontSize: '12px',
+                backgroundColor: filterType === type ? '#2563eb' : '#e5e7eb',
+                color: filterType === type ? 'white' : '#374151',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                fontWeight: filterType === type ? 'bold' : 'normal'
+              }}
+            >
+              {type.charAt(0).toUpperCase() + type.slice(1)}
+            </button>
+          ))}
+        </div>
+        
+        {filteredJobs.length === 0 ? (
+          <p>No {filterType !== 'all' ? filterType : ''} jobs scheduled!</p>
+        ) : dayView === 'week' ? (
+          Object.keys(jobsByDate).map(dateKey => (
+            <div key={dateKey}>
+              <h3 style={{ 
+                marginTop: '20px', 
+                marginBottom: '10px',
+                paddingBottom: '10px',
+                borderBottom: '2px solid #e5e7eb',
+                color: '#374151'
+              }}>
+                {dateKey}
+              </h3>
+              {jobsByDate[dateKey].map((job, index) => {
+                const isComplete = job.summary.includes('[COMPLETE]');
+                return (
+                  <div 
+                    key={index} 
+                    onClick={() => setSelectedJob(job)}
+                    style={{
+                      padding: '15px',
+                      marginBottom: '10px',
+                      backgroundColor: isComplete ? '#f0fdf4' : '#f0f0f0',
+                      borderRadius: '5px',
+                      borderLeft: `6px solid ${getCalendarColor(job.calendarId)}`,
+                      cursor: 'pointer',
+                      opacity: isComplete ? 0.7 : 1
+                    }}
+                  >
+                    <div style={{ 
+                      fontSize: '10px', 
+                      color: '#666', 
+                      marginBottom: '5px',
+                      textTransform: 'uppercase',
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      justifyContent: 'space-between'
+                    }}>
+                      <span>{getCalendarName(job.calendarId)}</span>
+                      {isComplete && <span style={{ color: '#16a34a' }}>✅</span>}
+                    </div>
+                    <div style={{ fontWeight: 'bold', fontSize: '16px' }}>
+                      {job.summary}
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+                      ⏰ {new Date(job.start.dateTime || job.start.date).toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit'
+                      })}
+                      {extractAddress(job) && (
+                        <span style={{ marginLeft: '10px' }}>
+                          📍 {extractAddress(job).substring(0, 30)}...
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))
+        ) : (
+          filteredJobs.map((job, index) => {
+            const isComplete = job.summary.includes('[COMPLETE]');
+            return (
+              <div 
+                key={index} 
+                onClick={() => setSelectedJob(job)}
+                style={{
+                  padding: '15px',
+                  marginBottom: '10px',
+                  backgroundColor: isComplete ? '#f0fdf4' : '#f0f0f0',
+                  borderRadius: '5px',
+                  borderLeft: `6px solid ${getCalendarColor(job.calendarId)}`,
+                  cursor: 'pointer',
+                  opacity: isComplete ? 0.7 : 1
+                }}
+              >
+                <div style={{ 
+                  fontSize: '10px', 
+                  color: '#666', 
+                  marginBottom: '5px',
+                  textTransform: 'uppercase',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  justifyContent: 'space-between'
+                }}>
+                  <span>{getCalendarName(job.calendarId)}</span>
+                  {isComplete && <span style={{ color: '#16a34a' }}>✅</span>}
+                </div>
+                <div style={{ fontWeight: 'bold', fontSize: '16px' }}>
+                  {job.summary}
+                </div>
+                <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+                  ⏰ {new Date(job.start.dateTime || job.start.date).toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit'
+                  })}
+                  {extractAddress(job) && (
+                    <span style={{ marginLeft: '10px' }}>
+                      📍 {extractAddress(job).substring(0, 30)}...
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+
+        <QuickLinksBar />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ 
+      padding: '20px',
+      paddingBottom: '80px',
+      maxWidth: '400px',
+      margin: '0 auto',
+      fontFamily: 'Arial'
+    }}>
+      <h1 style={{ textAlign: 'center' }}>DRH Security</h1>
+      <div style={{ textAlign: 'center', marginBottom: '15px' }}><p style={{ fontSize: '12px', color: '#666', margin: '5px 0' }}>
+        Logged in as: {userEmail}</p><button onClick={() => { localStorage.clear(); window.location.reload(); }} style={{ padding: '8px 16px', backgroundColor: '#666', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>Logout</button></div>
+      
+      <button 
+        onClick={createServiceCall}
+        style={{
+          width: '100%',
+          height: '70px',
+          fontSize: '18px',
+          marginBottom: '12px',
+          backgroundColor: '#dc2626',
+          color: 'white',
+          border: 'none',
+          borderRadius: '10px',
+          cursor: 'pointer'
+        }}
+      >
+        🔴 SERVICE CALL
+      </button>
+
+ 
+      <button 
+        onClick={() => viewJobs('today')}
+        style={{
+          width: '100%',
+          height: '70px',
+          fontSize: '18px',
+          marginBottom: '12px',
+          backgroundColor: '#2563eb',
+          color: 'white',
+          border: 'none',
+          borderRadius: '10px',
+          cursor: 'pointer'
+        }}
+      >
+        📋 TODAY'S JOBS
+      </button>
+
+      <button 
+        onClick={() => viewJobs('week')}
+        style={{
+          width: '100%',
+          height: '70px',
+          fontSize: '18px',
+          marginBottom: '12px',
+          backgroundColor: '#16a34a',
+          color: 'white',
+          border: 'none',
+          borderRadius: '10px',
+          cursor: 'pointer'
+        }}
+      >
+        📅 THIS WEEK
+      </button>
+ 
+     <button 
+        onClick={fetchTasks}
+        style={{
+          width: '100%',
+          height: '70px',
+          fontSize: '18px',
+          marginBottom: '12px',
+          backgroundColor: '#f59e0b',
+          color: 'white',
+          border: 'none',
+          borderRadius: '10px',
+          cursor: 'pointer'
+        }}
+      >
+        📋 TODAY'S TASKS
+      </button>
+  
+      <button 
+        onClick={async () => {
+          await viewJobs('today');
+        }}
+        style={{
+          width: '100%',
+          height: '70px',
+          fontSize: '18px',
+          marginBottom: '12px',
+          backgroundColor: '#6b7280',
+          color: 'white',
+          border: 'none',
+          borderRadius: '10px',
+          cursor: 'pointer'
+        }}
+      >
+        🔁 RETURN VISIT
+      </button>
+
+
+      <button 
+        onClick={() => setShowPastJobs(true)}
+        style={{
+          width: "100%",
+          height: "70px",
+          fontSize: "18px",
+          marginBottom: "12px",
+          backgroundColor: "#8b5cf6",
+          color: "white",
+          border: "none",
+          borderRadius: "10px",
+          cursor: "pointer"
+        }}
+      >
+        🕐 PAST JOBS
+      </button>
+
+      <QuickLinksBar />
+    </div>
+  );
+}
+
+function App() {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  
+  return (
+    <GoogleOAuthProvider clientId={clientId}>
+      <AppContent />
+    </GoogleOAuthProvider>
+  );
+}
+
+export default App;

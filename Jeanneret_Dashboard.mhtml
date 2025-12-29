@@ -1,0 +1,188 @@
+From: <Saved by Blink>
+Snapshot-Content-Location: file:///Users/sarahass/Downloads/Jeanneret_Dashboard.html
+Subject: 
+Date: Sun, 16 Nov 2025 10:49:12 -0700
+MIME-Version: 1.0
+Content-Type: multipart/related;
+	type="text/html";
+	boundary="----MultipartBoundary--ciUSXmJFSIazVwnNYaBDjXaLqvGcTDEJ905phiVIHh----"
+
+
+------MultipartBoundary--ciUSXmJFSIazVwnNYaBDjXaLqvGcTDEJ905phiVIHh----
+Content-Type: text/html
+Content-ID: <frame-8FAD36E2A6F09C8CAC2DBC1973834783@mhtml.blink>
+Content-Transfer-Encoding: quoted-printable
+Content-Location: file:///Users/sarahass/Downloads/Jeanneret_Dashboard.html
+
+<!DOCTYPE html><html><head><meta http-equiv=3D"Content-Type" content=3D"tex=
+t/html; charset=3Dwindows-1252"><link rel=3D"stylesheet" type=3D"text/css" =
+href=3D"cid:css-4009089e-b480-4fe6-8c5c-0d71fbfb1ad8@mhtml.blink" />
+
+</head>
+<body>
+  <div class=3D"header">
+    <div class=3D"title">Jeanneret - Project Dashboard</div>
+    <div class=3D"date">Generated: November 16, 2025</div>
+  </div>
+ =20
+  <div class=3D"content">
+    <!-- Key Metrics -->
+    <div class=3D"metrics-grid">
+      <div class=3D"metric-card">
+        <div class=3D"metric-label">Trips</div>
+        <div class=3D"metric-value">17</div>
+        <div class=3D"metric-sub">@ $90 each =3D $1,530</div>
+      </div>
+     =20
+      <div class=3D"metric-card">
+        <div class=3D"metric-label">% Billed</div>
+        <div class=3D"metric-value">58.9%</div>
+        <div class=3D"metric-sub">$11,445 of $19,420</div>
+      </div>
+     =20
+      <div class=3D"metric-card">
+        <div class=3D"metric-label">Remaining</div>
+        <div class=3D"metric-value">$7,975</div>
+        <div class=3D"metric-sub">Still to invoice</div>
+      </div>
+     =20
+      <div class=3D"metric-card">
+        <div class=3D"metric-label">Hours</div>
+        <div class=3D"metric-value">75.4</div>
+        <div class=3D"metric-sub">66.2 tech + 9.2 JR</div>
+      </div>
+    </div>
+   =20
+    <!-- P&L Section -->
+    <div class=3D"pl-section">
+      <div class=3D"pl-breakdown">
+        <div class=3D"pl-title">Cost Breakdown</div>
+        <div class=3D"pl-row">
+          <div class=3D"pl-label">Labor</div>
+          <div class=3D"pl-value">$2,624</div>
+        </div>
+        <div class=3D"pl-row">
+          <div class=3D"pl-label">Materials</div>
+          <div class=3D"pl-value">$8,045</div>
+        </div>
+        <div class=3D"pl-row">
+          <div class=3D"pl-label">Admin/Overhead (52.1 wks)</div>
+          <div class=3D"pl-value">$2,190</div>
+        </div>
+        <div class=3D"pl-row">
+          <div class=3D"pl-label">Trip Charges</div>
+          <div class=3D"pl-value">$1,530</div>
+        </div>
+        <div class=3D"pl-total">
+          <div class=3D"pl-row">
+            <div class=3D"pl-label">TOTAL COST</div>
+            <div class=3D"pl-value">$14,389</div>
+          </div>
+        </div>
+      </div>
+     =20
+      <div class=3D"status-card">
+        <div class=3D"status-result">
+          <div class=3D"status-label">Current Status</div>
+          <div class=3D"status-value loss">-$2,944</div>
+          <div class=3D"status-margin">-25.7% margin</div>
+        </div>
+       =20
+        <div class=3D"flags">
+          <div class=3D"flag-text">52 weeks (1 year). 5 NC events =3D free =
+labor. Only 59% billed with $7,975 remaining.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+</body></html>
+------MultipartBoundary--ciUSXmJFSIazVwnNYaBDjXaLqvGcTDEJ905phiVIHh----
+Content-Type: text/css
+Content-Transfer-Encoding: quoted-printable
+Content-Location: cid:css-4009089e-b480-4fe6-8c5c-0d71fbfb1ad8@mhtml.blink
+
+@charset "windows-1252";
+
+:root { --color-primary: #E33737; --color-dark: #292929; --color-text: #4A4=
+A4A; --color-surface: #F5F5F5; --color-white: #FFFFFF; --color-profit: #2EC=
+C71; --color-loss: #E33737; --font-primary: -apple-system, BlinkMacSystemFo=
+nt, 'Segoe UI', sans-serif; --font-mono: 'SF Mono', Monaco, 'Courier New', =
+monospace; }
+
+* { margin: 0px; padding: 0px; box-sizing: border-box; }
+
+body { width: 10in; height: 7.5in; margin: 0px; padding: 0px; font-family: =
+var(--font-primary); background: var(--color-white); }
+
+.header { background: var(--color-dark); color: var(--color-white); padding=
+: 20px 40px; display: flex; justify-content: space-between; align-items: ce=
+nter; }
+
+.title { font-size: 26px; font-weight: bold; }
+
+.date { font-size: 12px; color: rgb(204, 204, 204); }
+
+.content { padding: 25px 40px; }
+
+.metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: =
+15px; margin-bottom: 20px; }
+
+.metric-card { background: var(--color-surface); padding: 15px; border-left=
+: 4px solid var(--color-dark); }
+
+.metric-label { font-size: 11px; color: var(--color-text); text-transform: =
+uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+
+.metric-value { font-family: var(--font-mono); font-size: 32px; font-weight=
+: bold; color: var(--color-dark); }
+
+.metric-sub { font-size: 11px; color: var(--color-text); margin-top: 4px; }
+
+.pl-section { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+
+.pl-breakdown { background: var(--color-surface); padding: 18px; }
+
+.pl-title { font-size: 14px; font-weight: bold; color: var(--color-dark); m=
+argin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+.pl-row { display: flex; justify-content: space-between; padding: 8px 0px; =
+border-bottom: 1px solid rgb(224, 224, 224); }
+
+.pl-row:last-child { border-bottom: none; }
+
+.pl-label { font-size: 12px; color: var(--color-text); }
+
+.pl-value { font-family: var(--font-mono); font-size: 12px; color: var(--co=
+lor-dark); font-weight: 600; }
+
+.pl-total { background: var(--color-dark); padding: 12px; margin-top: 8px; =
+}
+
+.pl-total .pl-label, .pl-total .pl-value { color: var(--color-white); font-=
+size: 13px; }
+
+.status-card { background: var(--color-surface); padding: 18px; display: fl=
+ex; flex-direction: column; justify-content: space-between; }
+
+.status-result { text-align: center; margin-bottom: 15px; }
+
+.status-label { font-size: 11px; color: var(--color-text); text-transform: =
+uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+
+.status-value { font-family: var(--font-mono); font-size: 42px; font-weight=
+: bold; }
+
+.status-value.profit { color: var(--color-profit); }
+
+.status-value.loss { color: var(--color-loss); }
+
+.status-margin { font-size: 16px; color: var(--color-text); margin-top: 4px=
+; }
+
+.flags { background: rgb(255, 243, 205); border-left: 4px solid rgb(133, 10=
+0, 4); padding: 10px; margin-top: 10px; }
+
+.flag-text { font-size: 10px; color: rgb(133, 100, 4); line-height: 1.4; }
+------MultipartBoundary--ciUSXmJFSIazVwnNYaBDjXaLqvGcTDEJ905phiVIHh------
