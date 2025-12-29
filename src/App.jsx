@@ -2,13 +2,13 @@ import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 import { useState, useEffect } from 'react';
 
 function AppContent() {
-  const APP_VERSION = '4.1';
+  const APP_VERSION = '4.0';
   
   // What's New - UPDATE THIS WITH EACH RELEASE
   const WHATS_NEW = [
-    "🎯 4-button tech disposition (Return/Sale/Done/NoCharge)",
-    "💰 Sales Queue: SOLD/SENT/FOLLOW UP/LOST",
-    "📋 New Service Call form with priority & source"
+    "🎯 NEW: 4-button job disposition (Return, Sale, Done, No Charge)",
+    "🚫 Fixed: Jobs can no longer be Complete AND Return at same time",
+    "📊 Coming soon: 4-card dashboard layout"
   ];
 
   // Browser Push Notifications
@@ -196,17 +196,6 @@ const [userEmail, setUserEmail] = useState(() => {
   const [returnNeededJobs, setReturnNeededJobs] = useState([]);
   const [showSalesQueue, setShowSalesQueue] = useState(false);
   const [salesQueueJobs, setSalesQueueJobs] = useState([]);
-  
-  // New Service Call Form
-  const [showNewServiceCall, setShowNewServiceCall] = useState(false);
-  const [newServiceData, setNewServiceData] = useState({
-    customerName: '',
-    phone: '',
-    address: '',
-    issue: '',
-    priority: 'normal',
-    source: 'phone'
-  });
 
   // Handle browser back button/gesture
   useEffect(() => {
@@ -215,11 +204,9 @@ const [userEmail, setUserEmail] = useState(() => {
       else if (showDeadConfirm) { setShowDeadConfirm(false); setDeadConfirmJob(null); }
       else if (showCompletionForm) { setShowCompletionForm(false); setCompletionJob(null); }
       else if (showDispositionModal) { setShowDispositionModal(false); setDispositionJob(null); }
-      else if (showNewServiceCall) { setShowNewServiceCall(false); }
       else if (selectedJob) { setSelectedJob(null); }
       else if (showReturnVisit) { setShowReturnVisit(false); setReturnVisitJob(null); }
       else if (showDispatch) { setShowDispatch(false); }
-      else if (showSalesQueue) { setShowSalesQueue(false); }
       else if (showToBeBilled) { setShowToBeBilled(false); }
       else if (showPastJobs) { setShowPastJobs(false); }
       else if (showTasks) { setShowTasks(false); }
@@ -228,14 +215,14 @@ const [userEmail, setUserEmail] = useState(() => {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [showAssignModal, showDeadConfirm, showCompletionForm, showDispositionModal, showNewServiceCall, selectedJob, showReturnVisit, showDispatch, showSalesQueue, showToBeBilled, showPastJobs, showTasks, showJobs]);
+  }, [showAssignModal, showDeadConfirm, showCompletionForm, showDispositionModal, selectedJob, showReturnVisit, showDispatch, showToBeBilled, showPastJobs, showTasks, showJobs]);
 
   // Push history state when entering views
   useEffect(() => {
-    if (showJobs || showTasks || showPastJobs || showToBeBilled || showDispatch || showReturnVisit || selectedJob || showCompletionForm || showAssignModal || showDispositionModal || showNewServiceCall || showSalesQueue) {
+    if (showJobs || showTasks || showPastJobs || showToBeBilled || showDispatch || showReturnVisit || selectedJob || showCompletionForm || showAssignModal || showDispositionModal) {
       window.history.pushState({ app: true }, '');
     }
-  }, [showJobs, showTasks, showPastJobs, showToBeBilled, showDispatch, showReturnVisit, selectedJob, showCompletionForm, showAssignModal, showDispositionModal, showNewServiceCall, showSalesQueue]);
+  }, [showJobs, showTasks, showPastJobs, showToBeBilled, showDispatch, showReturnVisit, selectedJob, showCompletionForm, showAssignModal, showDispositionModal]);
 
   const weeklyActions = [
     { id: 1, text: 'Add customer name to Thursday "Confirmed" calendar entry', priority: 'high' },
@@ -348,62 +335,18 @@ const SHEET_ID = '1aT7qG75PNhPQ6o-q81RHjYokOw1H-Z8bgZDQGS1pseg';
       alert('Error completing task');
     }
   };
-  // Opens the New Service Call form
-  const openNewServiceCall = () => {
-    setNewServiceData({
-      customerName: '',
-      phone: '',
-      address: '',
-      issue: '',
-      priority: 'normal',
-      source: 'phone'
-    });
-    setShowNewServiceCall(true);
-  };
-
-  // Submit new service call
-  const submitNewServiceCall = async () => {
-    if (!newServiceData.customerName.trim()) {
-      alert('Customer name is required');
-      return;
-    }
-
-    const priorityTags = {
-      urgent: '🔴 URGENT',
-      high: '🟠 HIGH',
-      normal: '',
-      low: '🟢 LOW'
-    };
-
-    const sourceTags = {
-      phone: '📞 Phone',
-      email: '📧 Email',
-      walkin: '🚶 Walk-in',
-      monitoring: '📡 Monitoring',
-      referral: '👥 Referral'
-    };
-
-    const priorityPrefix = priorityTags[newServiceData.priority] ? `${priorityTags[newServiceData.priority]} ` : '';
+  const createServiceCall = async () => {
+    const customerName = prompt('Customer name:');
+    if (!customerName) return;
+    
+    const phone = prompt('Customer phone:');
+    const address = prompt('Address:');
+    const issue = prompt('Issue/Notes:');
     
     const event = {
-      summary: `[SERVICE] - QUEUE - ${priorityPrefix}${newServiceData.customerName}`,
-      description: `━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 NEW SERVICE CALL
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-👤 Customer: ${newServiceData.customerName}
-📞 Phone: ${newServiceData.phone || 'N/A'}
-📍 Address: ${newServiceData.address || 'N/A'}
-📥 Source: ${sourceTags[newServiceData.source]}
-⚡ Priority: ${newServiceData.priority.toUpperCase()}
-
-🔧 ISSUE:
-${newServiceData.issue || 'Not specified'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📅 Logged: ${new Date().toLocaleString()}
-👤 By: ${userEmail}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-      location: newServiceData.address || '',
+      summary: `[SERVICE] - QUEUE - ${customerName}`,
+      description: `Customer: ${customerName}\nPhone: ${phone || 'N/A'}\nAddress: ${address || 'N/A'}\nIssue: ${issue || 'N/A'}\n\nLogged from mobile app by ${userEmail}`,
+      location: address || '',
       start: {
         dateTime: new Date().toISOString(),
         timeZone: 'America/Denver'
@@ -414,32 +357,21 @@ ${newServiceData.issue || 'Not specified'}
       }
     };
 
-    try {
-      const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDARS.SERVICE_QUEUE)}/events`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(event)
-      });
+    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/de3d433f5c6c6a85f5474648e005cac43529d5bed542b74675a37a30cf0ece91@group.calendar.google.com/events', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(event)
+    });
 
-      if (response.ok) {
-        alert('✅ Service call logged!');
-        setShowNewServiceCall(false);
-        sendNotification('New Service Call', `${newServiceData.customerName} added to queue`);
-      } else {
-        alert('Error: ' + response.status);
-      }
-    } catch (error) {
-      console.error('Error creating service call:', error);
-      alert('Error creating service call');
+    if (response.ok) {
+      alert('Service call logged! ✅');
+      sendNotification('New Service Call', `${customerName} added to queue`);
+    } else {
+      alert('Error: ' + response.status);
     }
-  };
-
-  // Legacy function for backward compatibility
-  const createServiceCall = () => {
-    openNewServiceCall();
   };
 
   const getCalendarColor = (calendarId) => {
@@ -1957,360 +1889,58 @@ ${completionData.billingNotes || 'None'}
     );
   }
 
-  // New Service Call Form
-  if (showNewServiceCall) {
-    return (
-      <div style={{ 
-        padding: '20px',
-        paddingBottom: '80px',
-        maxWidth: '400px',
-        margin: '0 auto',
-        fontFamily: 'Arial'
-      }}>
-        <button 
-          onClick={() => setShowNewServiceCall(false)}
-          style={{
-            marginBottom: '20px',
-            padding: '10px',
-            backgroundColor: '#666',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer'
-          }}
-        >
-          ← Cancel
-        </button>
-
-        <h2>📋 New Service Call</h2>
-        
-        {/* Customer Name - Required */}
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-            👤 Customer Name <span style={{color: '#ef4444'}}>*</span>
-          </label>
-          <input 
-            type="text"
-            value={newServiceData.customerName}
-            onChange={(e) => setNewServiceData({...newServiceData, customerName: e.target.value})}
-            placeholder="Customer or business name"
-            style={{
-              width: '100%',
-              padding: '12px',
-              fontSize: '16px',
-              borderRadius: '8px',
-              border: '1px solid #ccc'
-            }}
-          />
-        </div>
-
-        {/* Phone */}
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-            📞 Phone
-          </label>
-          <input 
-            type="tel"
-            value={newServiceData.phone}
-            onChange={(e) => setNewServiceData({...newServiceData, phone: e.target.value})}
-            placeholder="(555) 555-5555"
-            style={{
-              width: '100%',
-              padding: '12px',
-              fontSize: '16px',
-              borderRadius: '8px',
-              border: '1px solid #ccc'
-            }}
-          />
-        </div>
-
-        {/* Address */}
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-            📍 Address
-          </label>
-          <input 
-            type="text"
-            value={newServiceData.address}
-            onChange={(e) => setNewServiceData({...newServiceData, address: e.target.value})}
-            placeholder="Full address"
-            style={{
-              width: '100%',
-              padding: '12px',
-              fontSize: '16px',
-              borderRadius: '8px',
-              border: '1px solid #ccc'
-            }}
-          />
-        </div>
-
-        {/* Source & Priority - Side by side */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-              📥 Source
-            </label>
-            <select
-              value={newServiceData.source}
-              onChange={(e) => setNewServiceData({...newServiceData, source: e.target.value})}
-              style={{
-                width: '100%',
-                padding: '12px',
-                fontSize: '14px',
-                borderRadius: '8px',
-                border: '1px solid #ccc'
-              }}
-            >
-              <option value="phone">📞 Phone</option>
-              <option value="email">📧 Email</option>
-              <option value="monitoring">📡 Monitoring</option>
-              <option value="walkin">🚶 Walk-in</option>
-              <option value="referral">👥 Referral</option>
-            </select>
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-              ⚡ Priority
-            </label>
-            <select
-              value={newServiceData.priority}
-              onChange={(e) => setNewServiceData({...newServiceData, priority: e.target.value})}
-              style={{
-                width: '100%',
-                padding: '12px',
-                fontSize: '14px',
-                borderRadius: '8px',
-                border: '1px solid #ccc'
-              }}
-            >
-              <option value="urgent">🔴 Urgent</option>
-              <option value="high">🟠 High</option>
-              <option value="normal">⚪ Normal</option>
-              <option value="low">🟢 Low</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Issue/Notes */}
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-            🔧 Issue / Notes
-          </label>
-          <textarea 
-            value={newServiceData.issue}
-            onChange={(e) => setNewServiceData({...newServiceData, issue: e.target.value})}
-            rows="4"
-            placeholder="Describe the issue, what they need, any special instructions..."
-            style={{
-              width: '100%',
-              padding: '12px',
-              fontSize: '16px',
-              borderRadius: '8px',
-              border: '1px solid #ccc',
-              fontFamily: 'Arial'
-            }}
-          />
-        </div>
-
-        <button 
-          onClick={submitNewServiceCall}
-          style={{
-            width: '100%',
-            padding: '15px',
-            fontSize: '18px',
-            backgroundColor: '#16a34a',
-            color: 'white',
-            border: 'none',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            fontWeight: 'bold'
-          }}
-        >
-          ✅ Create Service Call
-        </button>
-
-        <QuickLinksBar />
-      </div>
-    );
-  }
-
-  // Sales Queue View - JR's Estimate Queue
+  // Sales Queue View
   if (showSalesQueue) {
     return (
       <div style={{ padding: "20px", paddingBottom: "80px", maxWidth: "400px", margin: "0 auto", fontFamily: "Arial" }}>
         <button onClick={() => setShowSalesQueue(false)} style={{ marginBottom: "20px", padding: "10px", backgroundColor: "#666", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}>← Back</button>
         <h2>💰 Sales Queue</h2>
-        <p style={{ color: "#666", marginBottom: "15px" }}>{salesQueueJobs.length} estimate{salesQueueJobs.length !== 1 ? "s" : ""} pending</p>
-        
+        <p style={{ color: "#666", marginBottom: "15px" }}>{salesQueueJobs.length} estimate{salesQueueJobs.length !== 1 ? "s" : ""} needed</p>
         {salesQueueJobs.length === 0 ? (
           <div style={{ padding: "40px", textAlign: "center", backgroundColor: "#fdf2f8", borderRadius: "10px" }}>
             <div style={{ fontSize: "48px", marginBottom: "10px" }}>✅</div>
-            <div style={{ fontSize: "18px", color: "#be185d" }}>All caught up!</div>
+            <div style={{ fontSize: "18px", color: "#be185d" }}>No pending estimates!</div>
           </div>
         ) : (
           salesQueueJobs.map(job => {
             const age = getQueueAge(job);
-            const customerName = job.summary.replace('[ESTIMATE NEEDED]', '').replace('[ESTIMATE SENT]', '').replace('[SERVICE]', '').replace('[FOLLOW UP]', '').trim();
-            const hasEstimateSent = job.summary.includes('[ESTIMATE SENT]');
-            const hasFollowUp = job.summary.includes('[FOLLOW UP]');
-            const phone = extractPhone(job);
-            const address = extractAddress(job);
-            
+            const customerName = job.summary.replace('[ESTIMATE NEEDED]', '').replace('[SERVICE]', '').trim();
             return (
-              <div key={job.id} style={{ 
-                padding: "15px", 
-                marginBottom: "12px", 
-                backgroundColor: "#fff", 
-                border: "1px solid #e5e7eb", 
-                borderRadius: "10px", 
-                borderLeft: `4px solid ${hasEstimateSent ? '#16a34a' : hasFollowUp ? '#f59e0b' : '#ec4899'}` 
-              }}>
-                {/* Header with age */}
+              <div key={job.id} style={{ padding: "15px", marginBottom: "10px", backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", borderLeft: "4px solid #ec4899" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                  <span style={{ fontSize: "12px", color: "#666" }}>
-                    {hasEstimateSent && "✅ ESTIMATE SENT • "}
-                    {hasFollowUp && "📞 FOLLOW UP • "}
-                    {new Date(job.start?.dateTime || job.created).toLocaleDateString()}
-                  </span>
-                  <span style={{ fontSize: "12px", color: age.color, fontWeight: "bold" }}>{age.emoji} {age.days}d</span>
+                  <span style={{ fontSize: "12px", color: "#666" }}>{new Date(job.created).toLocaleDateString()}</span>
+                  <span style={{ fontSize: "12px", color: age.color, fontWeight: "bold" }}>{age.emoji} {age.days} days</span>
                 </div>
-                
-                {/* Customer name */}
-                <div style={{ fontWeight: "bold", fontSize: "16px", marginBottom: "10px", color: "#111827" }}>{customerName}</div>
-                
-                {/* Contact info */}
-                {phone && (
-                  <a href={`tel:${phone}`} style={{ 
-                    display: "block", 
-                    fontSize: "15px", 
-                    color: "#2563eb", 
-                    marginBottom: "6px",
-                    textDecoration: "none"
-                  }}>📞 {phone}</a>
-                )}
-                {address && (
-                  <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`} 
-                     target="_blank" rel="noopener noreferrer"
-                     style={{ display: "block", fontSize: "14px", color: "#666", marginBottom: "10px", textDecoration: "none" }}>
-                    📍 {address}
-                  </a>
-                )}
-                
-                {/* Notes preview */}
-                <div style={{ 
-                  fontSize: "13px", 
-                  color: "#666", 
-                  marginBottom: "12px", 
-                  whiteSpace: "pre-wrap",
-                  backgroundColor: "#f9fafb",
-                  padding: "10px",
-                  borderRadius: "6px",
-                  maxHeight: "100px",
-                  overflowY: "auto"
-                }}>
-                  {job.description?.substring(0, 300) || "No notes"}
-                </div>
-                
-                {/* Action buttons - 2x2 grid */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                  {/* SOLD - moves to installation queue */}
+                <div style={{ fontWeight: "bold", marginBottom: "8px", color: "#111827" }}>{customerName}</div>
+                {extractPhone(job) && <div style={{ fontSize: "14px", color: "#666", marginBottom: "4px" }}>📞 {extractPhone(job)}</div>}
+                {extractAddress(job) && <div style={{ fontSize: "14px", color: "#666", marginBottom: "8px" }}>📍 {extractAddress(job)}</div>}
+                <div style={{ fontSize: "12px", color: "#666", marginBottom: "10px", whiteSpace: "pre-wrap" }}>{job.description?.substring(0, 200) || "No notes"}</div>
+                <div style={{ display: "flex", gap: "6px" }}>
                   <button onClick={async () => {
-                    const newSummary = `[INSTALLATION] ${customerName}`;
-                    const soldNotes = `\n\n━━━ SOLD ━━━\n📅 ${new Date().toLocaleDateString()}\n👤 ${userEmail}\n`;
+                    const newSummary = job.summary.replace('[ESTIMATE NEEDED]', '[ESTIMATE SENT]');
                     try {
-                      await moveEventToCalendar(job, CALENDARS.SERVICE_QUEUE, newSummary, (job.description || '') + soldNotes);
+                      await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(job.calendarId)}/events/${job.id}`, {
+                        method: 'PATCH',
+                        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ summary: newSummary, description: (job.description || '') + `\n\nEstimate sent by: ${userEmail} on ${new Date().toLocaleDateString()}` })
+                      });
                       setSalesQueueJobs(prev => prev.filter(j => j.id !== job.id));
-                      alert('🎉 SOLD! Moved to installation queue');
+                      alert('Marked as Estimate Sent');
                     } catch(e) { alert('Error'); }
-                  }} style={{ 
-                    padding: "12px", 
-                    fontSize: "14px", 
-                    backgroundColor: "#16a34a", 
-                    color: "white", 
-                    border: "none", 
-                    borderRadius: "8px", 
-                    cursor: "pointer", 
-                    fontWeight: "bold" 
-                  }}>🎉 SOLD</button>
-                  
-                  {/* ESTIMATE SENT */}
-                  {!hasEstimateSent && (
-                    <button onClick={async () => {
-                      const newSummary = `[ESTIMATE SENT] ${customerName}`;
-                      const sentNotes = `\n\n━━━ ESTIMATE SENT ━━━\n📅 ${new Date().toLocaleDateString()}\n👤 ${userEmail}\n`;
-                      try {
-                        await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(job.calendarId)}/events/${job.id}`, {
-                          method: 'PATCH',
-                          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ summary: newSummary, description: (job.description || '') + sentNotes })
-                        });
-                        await fetchSalesQueue();
-                        alert('✅ Marked as Estimate Sent');
-                      } catch(e) { alert('Error'); }
-                    }} style={{ 
-                      padding: "12px", 
-                      fontSize: "14px", 
-                      backgroundColor: "#2563eb", 
-                      color: "white", 
-                      border: "none", 
-                      borderRadius: "8px", 
-                      cursor: "pointer", 
-                      fontWeight: "bold" 
-                    }}>📨 SENT</button>
-                  )}
-                  
-                  {/* FOLLOW UP */}
-                  {hasEstimateSent && !hasFollowUp && (
-                    <button onClick={async () => {
-                      const newSummary = `[FOLLOW UP] [ESTIMATE SENT] ${customerName}`;
-                      const followNotes = `\n\n━━━ FOLLOW UP NEEDED ━━━\n📅 ${new Date().toLocaleDateString()}\n👤 ${userEmail}\n`;
-                      try {
-                        await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(job.calendarId)}/events/${job.id}`, {
-                          method: 'PATCH',
-                          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ summary: newSummary, description: (job.description || '') + followNotes })
-                        });
-                        await fetchSalesQueue();
-                        alert('📞 Follow up scheduled');
-                      } catch(e) { alert('Error'); }
-                    }} style={{ 
-                      padding: "12px", 
-                      fontSize: "14px", 
-                      backgroundColor: "#f59e0b", 
-                      color: "white", 
-                      border: "none", 
-                      borderRadius: "8px", 
-                      cursor: "pointer", 
-                      fontWeight: "bold" 
-                    }}>📞 FOLLOW UP</button>
-                  )}
-                  
-                  {/* LOST */}
+                  }} style={{ flex: 1, padding: "10px", fontSize: "12px", backgroundColor: "#16a34a", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>✅ Estimate Sent</button>
                   <button onClick={async () => {
-                    if (!confirm('Mark as lost?')) return;
-                    const newSummary = `[LOST] ${customerName}`;
-                    const lostNotes = `\n\n━━━ LOST ━━━\n📅 ${new Date().toLocaleDateString()}\n👤 ${userEmail}\n`;
+                    const newSummary = `[LOST] ${job.summary.replace('[ESTIMATE NEEDED]', '').trim()}`;
                     try {
-                      await moveEventToCalendar(job, CALENDARS.COMPLETED, newSummary, (job.description || '') + lostNotes);
+                      await moveEventToCalendar(job, CALENDARS.COMPLETED, newSummary, (job.description || '') + `\n\nMarked LOST by: ${userEmail} on ${new Date().toLocaleDateString()}`);
                       setSalesQueueJobs(prev => prev.filter(j => j.id !== job.id));
                       alert('Marked as Lost');
                     } catch(e) { alert('Error'); }
-                  }} style={{ 
-                    padding: "12px", 
-                    fontSize: "14px", 
-                    backgroundColor: "#6b7280", 
-                    color: "white", 
-                    border: "none", 
-                    borderRadius: "8px", 
-                    cursor: "pointer", 
-                    fontWeight: "bold" 
-                  }}>❌ LOST</button>
+                  }} style={{ flex: 1, padding: "10px", fontSize: "12px", backgroundColor: "#6b7280", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>❌ Lost</button>
                 </div>
               </div>
             );
           })
         )}
-        <QuickLinksBar />
       </div>
     );
   }
