@@ -2,14 +2,14 @@ import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 import { useState, useEffect } from 'react';
 
 function AppContent() {
-  const APP_VERSION = '4.5';
+  const APP_VERSION = '4.6';
   
   // What's New - UPDATE THIS WITH EACH RELEASE
   const WHATS_NEW = [
+    "🔄 CMS Auto-Poll: Checks Gmail every 5 minutes automatically",
+    "🔔 CMS Notifications: Get alerted when signals arrive",
     "👩 Sara: Added as assignment option in dispatch",
-    "📝 Notes: Visible in queue, To Be Billed, editable everywhere",
-    "📧 CMS Email: Auto-fetches monitoring signals from Gmail",
-    "📡 CMS Signals: Convert to service calls, mark as read"
+    "📝 Notes: Visible in queue, To Be Billed, editable everywhere"
   ];
 
   // Browser Push Notifications
@@ -82,6 +82,7 @@ const [userEmail, setUserEmail] = useState(() => {
     
     if (lowerEmail === 'info@drhsecurityservices.com') return 'superadmin';
     if (lowerEmail === 'shanaparks@drhsecurityservices.com') return 'command';
+    if (lowerEmail === 'accounting@drhsecurityservices.com') return 'command'; // CMS access
     if (lowerEmail === 'jr@drhsecurityservices.com') return 'owner';
     if (lowerEmail.endsWith('@drhsecurityservices.com')) return 'tech';
     
@@ -1256,6 +1257,43 @@ ${completionData.billingNotes || 'None'}
       console.error('Error marking email read:', e);
     }
   };
+
+  // Auto-poll CMS signals every 5 minutes
+  useEffect(() => {
+    if (!accessToken) return;
+    
+    // Initial fetch after 5 seconds (give time for other things to load)
+    const initialTimeout = setTimeout(() => {
+      fetchCmsSignals();
+    }, 5000);
+    
+    // Then poll every 5 minutes
+    const pollInterval = setInterval(() => {
+      console.log('Auto-polling CMS signals...');
+      fetchCmsSignals();
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(pollInterval);
+    };
+  }, [accessToken]);
+
+  // Notify when new CMS signals arrive
+  useEffect(() => {
+    if (cmsSignals.length > 0) {
+      // Check if we have new signals (ones added in last 10 seconds)
+      const recentSignals = cmsSignals.filter(s => {
+        const signalTime = new Date(s.timestamp).getTime();
+        const now = Date.now();
+        return (now - signalTime) < 10000; // 10 seconds
+      });
+      
+      if (recentSignals.length > 0 && Notification.permission === 'granted') {
+        sendNotification('📡 CMS Alert', `${recentSignals.length} new monitoring signal${recentSignals.length > 1 ? 's' : ''}`);
+      }
+    }
+  }, [cmsSignals.length]);
 
   const fetchDispatchData = async (daysBack = queueDaysBack) => {
     // Fetch Queue (Service Queue - not complete, not dead)
@@ -4282,14 +4320,25 @@ if (showTasks) {
   }
 
   return (
-    <div style={{ 
-      paddingBottom: '80px',
-      maxWidth: '500px',
-      margin: '0 auto',
-      fontFamily: "'Inter', system-ui, sans-serif",
-      background: '#F8F9FA',
-      minHeight: '100vh'
-    }}>
+    <>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.7; transform: scale(1.1); }
+        }
+        @keyframes blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+      `}</style>
+      <div style={{ 
+        paddingBottom: '80px',
+        maxWidth: '500px',
+        margin: '0 auto',
+        fontFamily: "'Inter', system-ui, sans-serif",
+        background: '#F8F9FA',
+        minHeight: '100vh'
+      }}>
       {/* Header */}
       <div style={{
         background: '#0A2240',
@@ -4816,6 +4865,7 @@ if (showTasks) {
       </div>
       <QuickLinksBar />
     </div>
+    </>
   );
 }
 
