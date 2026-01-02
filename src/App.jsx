@@ -2,14 +2,14 @@ import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 import { useState, useEffect } from 'react';
 
 function AppContent() {
-  const APP_VERSION = '4.7';
+  const APP_VERSION = '4.9';
   
   // What's New - UPDATE THIS WITH EACH RELEASE
   const WHATS_NEW = [
-    "📧 CMS: Now reads from monitoring-center-notifications label",
-    "🔄 CMS Auto-Poll: Checks Gmail every 5 minutes automatically",
-    "👩 Sara: Added as assignment option in dispatch",
-    "📝 Notes: Visible in queue, To Be Billed, editable everywhere"
+    "📊 Customer Database: 358 customers from Google Sheets",
+    "🔍 Autocomplete: Type to search by name or CS#",
+    "🔗 CMS Match: Signals auto-link to customers by CS#",
+    "📧 CMS: Reads from monitoring-center-notifications label"
   ];
 
   // Browser Push Notifications
@@ -210,6 +210,9 @@ const [userEmail, setUserEmail] = useState(() => {
     priority: 'normal',
     source: 'phone'
   });
+  const [customerSuggestions, setCustomerSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [customerDatabase, setCustomerDatabase] = useState([]);
   
   // Sales Queue Detail View
   const [selectedSalesJob, setSelectedSalesJob] = useState(null);
@@ -380,6 +383,8 @@ const SHEET_ID = '1aT7qG75PNhPQ6o-q81RHjYokOw1H-Z8bgZDQGS1pseg';
       priority: 'normal',
       source: 'phone'
     });
+    setShowSuggestions(false);
+    setCustomerSuggestions([]);
     setShowNewServiceCall(true);
   };
 
@@ -556,6 +561,104 @@ ${newServiceData.issue || 'Not specified'}
     const desc = job.description || '';
     const addressMatch = desc.match(/Address:\s*([^<\n]+)/i);
     return addressMatch ? addressMatch[1].trim() : null;
+  };
+
+  // Extract customer name from job summary
+  const extractCustomerName = (job) => {
+    if (!job.summary) return null;
+    return job.summary
+      .replace(/\[SERVICE\]/gi, '')
+      .replace(/\[COMPLETE\]/gi, '')
+      .replace(/\[SCHEDULED\]/gi, '')
+      .replace(/\[ESTIMATE\]/gi, '')
+      .replace(/\[ESTIMATE NEEDED\]/gi, '')
+      .replace(/\[ESTIMATE SENT\]/gi, '')
+      .replace(/\[FOLLOW UP\]/gi, '')
+      .replace(/\[RETURN NEEDED\]/gi, '')
+      .replace(/\[DEAD\]/gi, '')
+      .replace(/\[LOST\]/gi, '')
+      .replace(/- QUEUE -/gi, '')
+      .replace(/QUEUE -/gi, '')
+      .replace(/🔴|🟡|🟢|⚪/g, '')
+      .trim();
+  };
+
+  // Build customer database from calendar events
+  const buildCustomerDatabase = (jobs) => {
+    const customerMap = new Map();
+    
+    jobs.forEach(job => {
+      const name = extractCustomerName(job);
+      if (!name || name.length < 2) return;
+      
+      const phone = extractPhone(job) || '';
+      const address = extractAddress(job) || '';
+      
+      // Use name as key, keep most recent info
+      const existing = customerMap.get(name.toLowerCase());
+      if (!existing || (phone && !existing.phone) || (address && !existing.address)) {
+        customerMap.set(name.toLowerCase(), {
+          name: name,
+          phone: phone || existing?.phone || '',
+          address: address || existing?.address || ''
+        });
+      }
+    });
+    
+    return Array.from(customerMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  };
+
+  // Filter suggestions based on input
+  const filterCustomerSuggestions = (input) => {
+    if (!input || input.length < 2) {
+      setCustomerSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    
+    const searchTerm = input.toLowerCase();
+    const matches = customerDatabase.filter(c => 
+      c.name.toLowerCase().includes(searchTerm) ||
+      c.cs_id.toLowerCase().includes(searchTerm)
+    ).slice(0, 8); // Max 8 suggestions
+    
+    setCustomerSuggestions(matches);
+    setShowSuggestions(matches.length > 0);
+  };
+
+  // Lookup customer by CS_ID
+  const lookupCustomerByCs = (csNumber) => {
+    if (!csNumber || customerDatabase.length === 0) return null;
+    return customerDatabase.find(c => 
+      c.cs_id.toLowerCase() === csNumber.toLowerCase() ||
+      c.cs_id.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() === csNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+    );
+  };
+
+  // Enrich CMS signal with customer database info
+  const enrichSignalWithCustomer = (signal) => {
+    const customer = lookupCustomerByCs(signal.csNumber);
+    if (customer) {
+      return {
+        ...signal,
+        customer: customer.name || signal.customer,
+        phone: signal.phone || customer.phone,
+        address: signal.address || customer.address,
+        matchedCustomer: customer
+      };
+    }
+    return signal;
+  };
+
+  // Select a customer from suggestions
+  const selectCustomerSuggestion = (customer) => {
+    setNewServiceData(prev => ({
+      ...prev,
+      customerName: customer.name,
+      phone: customer.phone || prev.phone,
+      address: customer.address || prev.address
+    }));
+    setShowSuggestions(false);
   };
 
   const updateJobNotes = async (job, newNotes) => {
@@ -1323,6 +1426,57 @@ ${completionData.billingNotes || 'None'}
       }
     }
   }, [cmsSignals.length]);
+
+  // Customer Database Google Sheet ID
+  const CUSTOMER_SHEET_ID = '10O4lMhOux4wOLukQvDCpMeqkRY9PJbiMQY_OpyfR_rU';
+
+  // Fetch customer database from Google Sheets
+  useEffect(() => {
+    if (!accessToken) return;
+    
+    const fetchCustomerDb = async () => {
+      try {
+        // Fetch from Google Sheets API
+        const res = await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${CUSTOMER_SHEET_ID}/values/Customers!A:I`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        
+        if (!res.ok) {
+          console.error('Failed to fetch customer database:', res.status);
+          return;
+        }
+        
+        const data = await res.json();
+        const rows = data.values || [];
+        
+        if (rows.length < 2) {
+          console.log('No customer data found');
+          return;
+        }
+        
+        // Skip header row, parse data
+        // Columns: CS_ID, Customer_Name, Phone, Address, City, State, Zip, System_Type, CMS_Monthly
+        const customers = rows.slice(1).map(row => ({
+          cs_id: row[0] || '',
+          name: row[1] || '',
+          phone: row[2] || '',
+          address: [row[3], row[4], row[5], row[6]].filter(Boolean).join(', '),
+          system_type: row[7] || '',
+          cms_monthly: row[8] || ''
+        })).filter(c => c.name); // Filter out empty rows
+        
+        setCustomerDatabase(customers);
+        console.log(`Loaded ${customers.length} customers from Google Sheets`);
+      } catch (e) {
+        console.error('Error fetching customer database:', e);
+      }
+    };
+    
+    // Fetch after short delay
+    const timeout = setTimeout(fetchCustomerDb, 2000);
+    return () => clearTimeout(timeout);
+  }, [accessToken]);
 
   const fetchDispatchData = async (daysBack = queueDaysBack) => {
     // Fetch Queue (Service Queue - not complete, not dead)
@@ -2320,16 +2474,29 @@ ${completionData.billingNotes || 'None'}
 
         <h2>📋 New Service Call</h2>
         
-        {/* Customer Name - Required */}
-        <div style={{ marginBottom: '15px' }}>
+        {/* Customer Name - Required with Autocomplete */}
+        <div style={{ marginBottom: '15px', position: 'relative' }}>
           <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
             👤 Customer Name <span style={{color: '#ef4444'}}>*</span>
           </label>
           <input 
             type="text"
             value={newServiceData.customerName}
-            onChange={(e) => setNewServiceData({...newServiceData, customerName: e.target.value})}
-            placeholder="Customer or business name"
+            onChange={(e) => {
+              setNewServiceData({...newServiceData, customerName: e.target.value});
+              filterCustomerSuggestions(e.target.value);
+            }}
+            onFocus={() => {
+              if (newServiceData.customerName.length >= 2) {
+                filterCustomerSuggestions(newServiceData.customerName);
+              }
+            }}
+            onBlur={() => {
+              // Delay hiding to allow click on suggestion
+              setTimeout(() => setShowSuggestions(false), 200);
+            }}
+            placeholder="Start typing to search customers..."
+            autoComplete="off"
             style={{
               width: '100%',
               padding: '12px',
@@ -2338,6 +2505,51 @@ ${completionData.billingNotes || 'None'}
               border: '1px solid #ccc'
             }}
           />
+          
+          {/* Autocomplete Suggestions */}
+          {showSuggestions && customerSuggestions.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              backgroundColor: '#fff',
+              border: '1px solid #ccc',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              zIndex: 1000,
+              maxHeight: '250px',
+              overflowY: 'auto'
+            }}>
+              {customerSuggestions.map((customer, idx) => (
+                <div 
+                  key={idx}
+                  onClick={() => selectCustomerSuggestion(customer)}
+                  style={{
+                    padding: '12px 15px',
+                    cursor: 'pointer',
+                    borderBottom: idx < customerSuggestions.length - 1 ? '1px solid #eee' : 'none',
+                    backgroundColor: '#fff'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f3f4f6'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = '#fff'}
+                >
+                  <div style={{ fontWeight: 'bold', color: '#111', marginBottom: '2px' }}>{customer.name}</div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>
+                    {customer.phone && <span>📞 {customer.phone}</span>}
+                    {customer.phone && customer.address && <span> • </span>}
+                    {customer.address && <span>📍 {customer.address.substring(0, 30)}{customer.address.length > 30 ? '...' : ''}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {customerDatabase.length > 0 && (
+            <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+              💡 {customerDatabase.length} customers loaded - type to search
+            </div>
+          )}
         </div>
 
         {/* Phone */}
@@ -2574,12 +2786,12 @@ ${completionData.billingNotes || 'None'}
             <div style={{ fontSize: "14px", color: "#666", marginTop: "10px" }}>Signals from CMS monitoring will appear here</div>
           </div>
         ) : (
-          cmsSignals.map(signal => (
+          cmsSignals.map(s => enrichSignalWithCustomer(s)).map(signal => (
             <div key={signal.id} style={{ 
               padding: "15px", 
               marginBottom: "12px", 
-              backgroundColor: "#fff", 
-              border: "1px solid #fecaca", 
+              backgroundColor: signal.matchedCustomer ? "#f0fdf4" : "#fff", 
+              border: signal.matchedCustomer ? "1px solid #86efac" : "1px solid #fecaca", 
               borderRadius: "10px", 
               borderLeft: `4px solid ${signal.signalType === 'Alarm' ? '#dc2626' : signal.signalType === 'Comm Fail' ? '#7c3aed' : '#f59e0b'}` 
             }}>
@@ -2605,7 +2817,10 @@ ${completionData.billingNotes || 'None'}
               </div>
               
               {/* Customer & CS# */}
-              <div style={{ fontWeight: "bold", fontSize: "16px", color: "#111" }}>{signal.customer}</div>
+              <div style={{ fontWeight: "bold", fontSize: "16px", color: "#111" }}>
+                {signal.customer}
+                {signal.matchedCustomer && <span style={{ marginLeft: "8px", fontSize: "11px", backgroundColor: "#16a34a", color: "white", padding: "2px 6px", borderRadius: "4px" }}>✓ CRM Match</span>}
+              </div>
               {signal.csNumber && <div style={{ fontSize: "12px", color: "#666" }}>CS# {signal.csNumber}</div>}
               
               {/* Zone */}
