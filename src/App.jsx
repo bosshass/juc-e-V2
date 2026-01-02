@@ -2,12 +2,12 @@ import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 import { useState, useEffect } from 'react';
 
 function AppContent() {
-  const APP_VERSION = '4.6';
+  const APP_VERSION = '4.7';
   
   // What's New - UPDATE THIS WITH EACH RELEASE
   const WHATS_NEW = [
+    "📧 CMS: Now reads from monitoring-center-notifications label",
     "🔄 CMS Auto-Poll: Checks Gmail every 5 minutes automatically",
-    "🔔 CMS Notifications: Get alerted when signals arrive",
     "👩 Sara: Added as assignment option in dispatch",
     "📝 Notes: Visible in queue, To Be Billed, editable everywhere"
   ];
@@ -1148,11 +1148,18 @@ ${completionData.billingNotes || 'None'}
     }
   };
 
+  // Track processed CMS emails in localStorage
+  const [processedCmsIds, setProcessedCmsIds] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('processedCmsIds') || '[]');
+    } catch { return []; }
+  });
+
   // Fetch CMS monitoring signals from Gmail
   const fetchCmsSignals = async () => {
     try {
-      // Search for unread emails from CMS monitoring
-      const query = 'from:noreply@myalarms.com is:unread';
+      // Search for emails in the monitoring-center-notifications label
+      const query = 'label:monitoring-center-notifications';
       const searchRes = await fetch(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=50`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -1176,9 +1183,17 @@ ${completionData.billingNotes || 'None'}
         return;
       }
       
+      // Filter out already processed emails
+      const unprocessedMessages = messages.filter(msg => !processedCmsIds.includes(msg.id));
+      
+      if (unprocessedMessages.length === 0) {
+        console.log('No new unprocessed CMS signals');
+        return;
+      }
+      
       const signals = [];
       
-      for (const msg of messages.slice(0, 20)) { // Process up to 20 messages
+      for (const msg of unprocessedMessages.slice(0, 20)) { // Process up to 20 messages
         try {
           const msgRes = await fetch(
             `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
@@ -1238,9 +1253,23 @@ ${completionData.billingNotes || 'None'}
     }
   };
 
+  // Mark email as processed (save to localStorage so we don't show it again)
+  const markEmailProcessed = (emailId) => {
+    if (!emailId) return;
+    setProcessedCmsIds(prev => {
+      const updated = [...prev, emailId];
+      // Keep only last 500 IDs to prevent localStorage bloat
+      const trimmed = updated.slice(-500);
+      localStorage.setItem('processedCmsIds', JSON.stringify(trimmed));
+      return trimmed;
+    });
+  };
+
   // Mark email as read when signal is dismissed/converted
   const markEmailRead = async (emailId) => {
     if (!emailId) return;
+    // Mark as processed so it doesn't show again
+    markEmailProcessed(emailId);
     try {
       await fetch(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${emailId}/modify`,
