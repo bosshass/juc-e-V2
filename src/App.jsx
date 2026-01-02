@@ -2,13 +2,14 @@ import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 import { useState, useEffect } from 'react';
 
 function AppContent() {
-  const APP_VERSION = '4.0';
+  const APP_VERSION = '4.5';
   
   // What's New - UPDATE THIS WITH EACH RELEASE
   const WHATS_NEW = [
-    "🎯 NEW: 4-button job disposition (Return, Sale, Done, No Charge)",
-    "🚫 Fixed: Jobs can no longer be Complete AND Return at same time",
-    "📊 Coming soon: 4-card dashboard layout"
+    "👩 Sara: Added as assignment option in dispatch",
+    "📝 Notes: Visible in queue, To Be Billed, editable everywhere",
+    "📧 CMS Email: Auto-fetches monitoring signals from Gmail",
+    "📡 CMS Signals: Convert to service calls, mark as read"
   ];
 
   // Browser Push Notifications
@@ -181,6 +182,7 @@ const [userEmail, setUserEmail] = useState(() => {
   const [queueJobs, setQueueJobs] = useState([]);
   const [austinJobs, setAustinJobs] = useState([]);
   const [jrJobs, setJrJobs] = useState([]);
+  const [saraJobs, setSaraJobs] = useState([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignJob, setAssignJob] = useState(null);
   const [assignTarget, setAssignTarget] = useState('austin');
@@ -196,6 +198,33 @@ const [userEmail, setUserEmail] = useState(() => {
   const [returnNeededJobs, setReturnNeededJobs] = useState([]);
   const [showSalesQueue, setShowSalesQueue] = useState(false);
   const [salesQueueJobs, setSalesQueueJobs] = useState([]);
+  
+  // New Service Call Form
+  const [showNewServiceCall, setShowNewServiceCall] = useState(false);
+  const [newServiceData, setNewServiceData] = useState({
+    customerName: '',
+    phone: '',
+    address: '',
+    issue: '',
+    priority: 'normal',
+    source: 'phone'
+  });
+  
+  // Sales Queue Detail View
+  const [selectedSalesJob, setSelectedSalesJob] = useState(null);
+  
+  // CMS Monitoring Signals
+  const [showSignals, setShowSignals] = useState(false);
+  const [cmsSignals, setCmsSignals] = useState([]);
+  const [showAddSignal, setShowAddSignal] = useState(false);
+  const [newSignal, setNewSignal] = useState({
+    customer: '',
+    zone: '',
+    signalType: 'Trbl Signal',
+    address: '',
+    phone: '',
+    csNumber: ''
+  });
 
   // Handle browser back button/gesture
   useEffect(() => {
@@ -204,9 +233,14 @@ const [userEmail, setUserEmail] = useState(() => {
       else if (showDeadConfirm) { setShowDeadConfirm(false); setDeadConfirmJob(null); }
       else if (showCompletionForm) { setShowCompletionForm(false); setCompletionJob(null); }
       else if (showDispositionModal) { setShowDispositionModal(false); setDispositionJob(null); }
+      else if (showNewServiceCall) { setShowNewServiceCall(false); }
+      else if (showAddSignal) { setShowAddSignal(false); }
+      else if (showSignals) { setShowSignals(false); }
+      else if (selectedSalesJob) { setSelectedSalesJob(null); }
       else if (selectedJob) { setSelectedJob(null); }
       else if (showReturnVisit) { setShowReturnVisit(false); setReturnVisitJob(null); }
       else if (showDispatch) { setShowDispatch(false); }
+      else if (showSalesQueue) { setShowSalesQueue(false); }
       else if (showToBeBilled) { setShowToBeBilled(false); }
       else if (showPastJobs) { setShowPastJobs(false); }
       else if (showTasks) { setShowTasks(false); }
@@ -215,14 +249,14 @@ const [userEmail, setUserEmail] = useState(() => {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [showAssignModal, showDeadConfirm, showCompletionForm, showDispositionModal, selectedJob, showReturnVisit, showDispatch, showToBeBilled, showPastJobs, showTasks, showJobs]);
+  }, [showAssignModal, showDeadConfirm, showCompletionForm, showDispositionModal, showNewServiceCall, selectedJob, showReturnVisit, showDispatch, showSalesQueue, showToBeBilled, showPastJobs, showTasks, showJobs, showSignals, showAddSignal, selectedSalesJob]);
 
   // Push history state when entering views
   useEffect(() => {
-    if (showJobs || showTasks || showPastJobs || showToBeBilled || showDispatch || showReturnVisit || selectedJob || showCompletionForm || showAssignModal || showDispositionModal) {
+    if (showJobs || showTasks || showPastJobs || showToBeBilled || showDispatch || showReturnVisit || selectedJob || showCompletionForm || showAssignModal || showDispositionModal || showNewServiceCall || showSalesQueue || showSignals || selectedSalesJob) {
       window.history.pushState({ app: true }, '');
     }
-  }, [showJobs, showTasks, showPastJobs, showToBeBilled, showDispatch, showReturnVisit, selectedJob, showCompletionForm, showAssignModal, showDispositionModal]);
+  }, [showJobs, showTasks, showPastJobs, showToBeBilled, showDispatch, showReturnVisit, selectedJob, showCompletionForm, showAssignModal, showDispositionModal, showNewServiceCall, showSalesQueue, showSignals, selectedSalesJob]);
 
   const weeklyActions = [
     { id: 1, text: 'Add customer name to Thursday "Confirmed" calendar entry', priority: 'high' },
@@ -252,7 +286,7 @@ const [userEmail, setUserEmail] = useState(() => {
       alert('Logged in as ' + userData.email);
       requestNotificationPermission();
     },
-    scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/spreadsheets'
+    scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.readonly'
   });
 
   const toggleAction = (actionId) => {
@@ -335,18 +369,62 @@ const SHEET_ID = '1aT7qG75PNhPQ6o-q81RHjYokOw1H-Z8bgZDQGS1pseg';
       alert('Error completing task');
     }
   };
-  const createServiceCall = async () => {
-    const customerName = prompt('Customer name:');
-    if (!customerName) return;
-    
-    const phone = prompt('Customer phone:');
-    const address = prompt('Address:');
-    const issue = prompt('Issue/Notes:');
+  // Opens the New Service Call form
+  const openNewServiceCall = () => {
+    setNewServiceData({
+      customerName: '',
+      phone: '',
+      address: '',
+      issue: '',
+      priority: 'normal',
+      source: 'phone'
+    });
+    setShowNewServiceCall(true);
+  };
+
+  // Submit new service call
+  const submitNewServiceCall = async () => {
+    if (!newServiceData.customerName.trim()) {
+      alert('Customer name is required');
+      return;
+    }
+
+    const priorityTags = {
+      urgent: '🔴 URGENT',
+      high: '🟠 HIGH',
+      normal: '',
+      low: '🟢 LOW'
+    };
+
+    const sourceTags = {
+      phone: '📞 Phone',
+      email: '📧 Email',
+      walkin: '🚶 Walk-in',
+      monitoring: '📡 Monitoring',
+      referral: '👥 Referral'
+    };
+
+    const priorityPrefix = priorityTags[newServiceData.priority] ? `${priorityTags[newServiceData.priority]} ` : '';
     
     const event = {
-      summary: `[SERVICE] - QUEUE - ${customerName}`,
-      description: `Customer: ${customerName}\nPhone: ${phone || 'N/A'}\nAddress: ${address || 'N/A'}\nIssue: ${issue || 'N/A'}\n\nLogged from mobile app by ${userEmail}`,
-      location: address || '',
+      summary: `[SERVICE] - QUEUE - ${priorityPrefix}${newServiceData.customerName}`,
+      description: `━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 NEW SERVICE CALL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 Customer: ${newServiceData.customerName}
+📞 Phone: ${newServiceData.phone || 'N/A'}
+📍 Address: ${newServiceData.address || 'N/A'}
+📥 Source: ${sourceTags[newServiceData.source]}
+⚡ Priority: ${newServiceData.priority.toUpperCase()}
+
+🔧 ISSUE:
+${newServiceData.issue || 'Not specified'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📅 Logged: ${new Date().toLocaleString()}
+👤 By: ${userEmail}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      location: newServiceData.address || '',
       start: {
         dateTime: new Date().toISOString(),
         timeZone: 'America/Denver'
@@ -357,21 +435,32 @@ const SHEET_ID = '1aT7qG75PNhPQ6o-q81RHjYokOw1H-Z8bgZDQGS1pseg';
       }
     };
 
-    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/de3d433f5c6c6a85f5474648e005cac43529d5bed542b74675a37a30cf0ece91@group.calendar.google.com/events', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(event)
-    });
+    try {
+      const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDARS.SERVICE_QUEUE)}/events`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(event)
+      });
 
-    if (response.ok) {
-      alert('Service call logged! ✅');
-      sendNotification('New Service Call', `${customerName} added to queue`);
-    } else {
-      alert('Error: ' + response.status);
+      if (response.ok) {
+        alert('✅ Service call logged!');
+        setShowNewServiceCall(false);
+        sendNotification('New Service Call', `${newServiceData.customerName} added to queue`);
+      } else {
+        alert('Error: ' + response.status);
+      }
+    } catch (error) {
+      console.error('Error creating service call:', error);
+      alert('Error creating service call');
     }
+  };
+
+  // Legacy function for backward compatibility
+  const createServiceCall = () => {
+    openNewServiceCall();
   };
 
   const getCalendarColor = (calendarId) => {
@@ -953,6 +1042,7 @@ ${completionData.billingNotes || 'None'}
     SERVICE_QUEUE: 'de3d433f5c6c6a85f5474648e005cac43529d5bed542b74675a37a30cf0ece91@group.calendar.google.com',
     DRH_TECH_1: 'drhservicetech1@gmail.com',
     JR_APPOINTMENT: 'do0i4f1jqbbakd72mpgpll9m6g@group.calendar.google.com',
+    SARA_TASKS: 'info@drhsecurityservices.com', // Sara's calendar
     ESTIMATE_NEEDED: 'c_aa764bfa5d492c689c26e3ed589df2804a04ee175db1b68d48217bd18883d178@group.calendar.google.com',
     COMPLETED: 'c_a095f8a75a8e3fb1bb4b0f3a2232962af3ab55f05a49ced1e4338abcc865d3e9@group.calendar.google.com',
     SALES: 'c_c84c0a24e2a7386cb519b21569fbb4b17a19214ce33744a63e06394f8c57339f@group.calendar.google.com'
@@ -983,6 +1073,187 @@ ${completionData.billingNotes || 'None'}
     } catch (e) { 
       console.error('Sales queue fetch error:', e); 
       alert('Error loading sales queue');
+    }
+  };
+
+  // Parse CMS email body to extract signal data
+  const parseCmsEmail = (body, subject, timestamp) => {
+    try {
+      // Parse body - format from myalarms.com
+      const lines = body.split('\n').map(l => l.trim()).filter(l => l);
+      
+      // Extract signal type (Trbl Signal, Suprv Signal, Alarm, etc.)
+      let signalType = 'Trbl Signal';
+      if (body.includes('Trbl Signal')) signalType = 'Trbl Signal';
+      else if (body.includes('Suprv Signal')) signalType = 'Suprv Signal';
+      else if (body.includes('Alarm')) signalType = 'Alarm';
+      else if (body.includes('Low Battery')) signalType = 'Low Battery';
+      else if (body.includes('Comm Fail') || body.includes('Communication')) signalType = 'Comm Fail';
+      
+      // Extract zone info
+      const zoneMatch = body.match(/Zone#?\s*([^\n]+)/i);
+      const zone = zoneMatch ? `Zone# ${zoneMatch[1].trim()}` : '';
+      
+      // Extract CS number from subject or body
+      const csMatch = subject.match(/CS#?\s*([A-Z0-9]+)/i) || body.match(/([A-Z]{2,4}\d{4,})/);
+      const csNumber = csMatch ? csMatch[1] : '';
+      
+      // Extract customer name - usually after CS# line
+      const customerMatch = subject.match(/MONITORING CENTER:\s*([^,]+)/i);
+      let customer = customerMatch ? customerMatch[1].trim() : '';
+      
+      // Try to get from body if not in subject
+      if (!customer) {
+        // Look for the customer name line (usually after CS#)
+        const bodyLines = body.split('\n');
+        for (let i = 0; i < bodyLines.length; i++) {
+          if (bodyLines[i].match(/^[A-Z]{2,4}\d{4,}/) && bodyLines[i+1]) {
+            customer = bodyLines[i+1].trim();
+            break;
+          }
+        }
+      }
+      
+      // Extract address
+      const addressMatch = body.match(/(\d+[^,\n]+(?:ST|AVE|BLVD|DR|RD|WAY|CIR|LN|CT|PL)[^,\n]*)/i);
+      let address = addressMatch ? addressMatch[1].trim() : '';
+      
+      // Try to get city/state
+      const cityMatch = body.match(/([A-Z]+,\s*CO,?\s*\d{5})/i);
+      if (cityMatch && address) {
+        address += ', ' + cityMatch[1];
+      }
+      
+      // Extract phone
+      const phoneMatch = body.match(/(\d{3}[-.]?\d{3}[-.]?\d{4})/);
+      const phone = phoneMatch ? phoneMatch[1] : '';
+      
+      return {
+        id: Date.now() + Math.random(),
+        customer: customer || 'Unknown Customer',
+        csNumber,
+        signalType,
+        zone,
+        address,
+        phone,
+        timestamp: timestamp || new Date().toISOString(),
+        status: 'new',
+        emailId: null,
+        raw: body
+      };
+    } catch (e) {
+      console.error('Parse error:', e);
+      return null;
+    }
+  };
+
+  // Fetch CMS monitoring signals from Gmail
+  const fetchCmsSignals = async () => {
+    try {
+      // Search for unread emails from CMS monitoring
+      const query = 'from:noreply@myalarms.com is:unread';
+      const searchRes = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=50`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      
+      if (searchRes.status === 401 || searchRes.status === 403) {
+        console.log('Gmail access not authorized - user may need to re-login');
+        return;
+      }
+      
+      if (!searchRes.ok) {
+        console.error('Gmail search failed:', searchRes.status);
+        return;
+      }
+      
+      const searchData = await searchRes.json();
+      const messages = searchData.messages || [];
+      
+      if (messages.length === 0) {
+        console.log('No new CMS signals');
+        return;
+      }
+      
+      const signals = [];
+      
+      for (const msg of messages.slice(0, 20)) { // Process up to 20 messages
+        try {
+          const msgRes = await fetch(
+            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          
+          if (!msgRes.ok) continue;
+          
+          const msgData = await msgRes.json();
+          
+          // Get subject
+          const subjectHeader = msgData.payload.headers.find(h => h.name.toLowerCase() === 'subject');
+          const subject = subjectHeader ? subjectHeader.value : '';
+          
+          // Get timestamp
+          const dateHeader = msgData.payload.headers.find(h => h.name.toLowerCase() === 'date');
+          const timestamp = dateHeader ? new Date(dateHeader.value).toISOString() : new Date().toISOString();
+          
+          // Get body - handle different formats
+          let body = '';
+          if (msgData.payload.body && msgData.payload.body.data) {
+            body = atob(msgData.payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+          } else if (msgData.payload.parts) {
+            const textPart = msgData.payload.parts.find(p => p.mimeType === 'text/plain');
+            if (textPart && textPart.body && textPart.body.data) {
+              body = atob(textPart.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+            }
+          }
+          
+          // Also try snippet
+          if (!body && msgData.snippet) {
+            body = msgData.snippet;
+          }
+          
+          const signal = parseCmsEmail(body, subject, timestamp);
+          if (signal) {
+            signal.emailId = msg.id;
+            signals.push(signal);
+          }
+        } catch (msgError) {
+          console.error('Error processing message:', msgError);
+        }
+      }
+      
+      if (signals.length > 0) {
+        setCmsSignals(prev => {
+          // Dedupe by emailId
+          const existingIds = new Set(prev.map(s => s.emailId).filter(Boolean));
+          const newSignals = signals.filter(s => !existingIds.has(s.emailId));
+          return [...newSignals, ...prev];
+        });
+      }
+      
+      console.log(`Fetched ${signals.length} CMS signals`);
+    } catch (e) {
+      console.error('CMS signals fetch error:', e);
+    }
+  };
+
+  // Mark email as read when signal is dismissed/converted
+  const markEmailRead = async (emailId) => {
+    if (!emailId) return;
+    try {
+      await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${emailId}/modify`,
+        {
+          method: 'POST',
+          headers: { 
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ removeLabelIds: ['UNREAD'] })
+        }
+      );
+    } catch (e) {
+      console.error('Error marking email read:', e);
     }
   };
 
@@ -1045,6 +1316,24 @@ ${completionData.billingNotes || 'None'}
         setJrJobs((data.items || []).map(e => ({ ...e, calendarId: CALENDARS.JR_APPOINTMENT })));
       }
     } catch (e) { console.error('JR fetch error:', e); }
+
+    // Fetch Sara - next 7 days
+    try {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date();
+      end.setDate(end.getDate() + 7);
+      end.setHours(23, 59, 59, 999);
+
+      const saraRes = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDARS.SARA_TASKS)}/events?timeMin=${start.toISOString()}&timeMax=${end.toISOString()}&singleEvents=true&orderBy=startTime`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (saraRes.ok) {
+        const data = await saraRes.json();
+        setSaraJobs((data.items || []).map(e => ({ ...e, calendarId: CALENDARS.SARA_TASKS })));
+      }
+    } catch (e) { console.error('Sara fetch error:', e); }
 
     // Fetch Return Needed jobs from all calendars
     try {
@@ -1110,13 +1399,17 @@ ${completionData.billingNotes || 'None'}
   const submitAssignment = async () => {
     if (!assignJob || !assignData.date) return;
 
-    const targetCalendar = assignTarget === 'austin' ? CALENDARS.DRH_TECH_1 : CALENDARS.JR_APPOINTMENT;
+    const targetCalendar = assignTarget === 'austin' ? CALENDARS.DRH_TECH_1 
+                         : assignTarget === 'sara' ? CALENDARS.SARA_TASKS 
+                         : CALENDARS.JR_APPOINTMENT;
     const startDateTime = new Date(`${assignData.date}T${assignData.time}`);
     const endDateTime = new Date(startDateTime.getTime() + parseInt(assignData.duration) * 60 * 60 * 1000);
 
     const customerName = assignJob.summary.replace('[SERVICE]', '').replace('- QUEUE -', '').replace('QUEUE -', '').trim();
     const phone = extractPhone(assignJob) || 'N/A';
     const address = extractAddress(assignJob) || '';
+
+    const techName = assignTarget === 'austin' ? 'Austin' : assignTarget === 'sara' ? 'Sara' : 'JR';
 
     const newEvent = {
       summary: customerName,
@@ -1155,8 +1448,7 @@ ${completionData.billingNotes || 'None'}
           }
         );
 
-        alert(`Assigned to ${assignTarget === 'austin' ? 'Austin' : 'JR'}!`);
-        const techName = assignTarget === 'austin' ? 'Austin' : 'JR';
+        alert(`Assigned to ${techName}!`);
         sendNotification('Job Assigned', `${customerName} assigned to ${techName}`);
         setShowAssignModal(false);
         setAssignJob(null);
@@ -1648,7 +1940,7 @@ ${completionData.billingNotes || 'None'}
     return (
       <div style={{ padding: '20px', paddingBottom: '80px', maxWidth: '400px', margin: '0 auto', fontFamily: 'Arial' }}>
         <button onClick={() => { setShowAssignModal(false); setAssignJob(null); }} style={{ marginBottom: '20px', padding: '10px', backgroundColor: '#666', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>← Cancel</button>
-        <h2>Assign to {assignTarget === 'austin' ? 'Austin' : 'JR'}</h2>
+        <h2>Assign to {assignTarget === 'austin' ? 'Austin' : assignTarget === 'sara' ? 'Sara' : 'JR'}</h2>
         <div style={{ padding: '15px', backgroundColor: '#f0f0f0', borderRadius: '5px', marginBottom: '20px' }}>
           <div style={{ fontWeight: 'bold' }}>{assignJob.summary.replace('[SERVICE]', '').replace('- QUEUE -', '').replace('QUEUE -', '').trim()}</div>
           {extractPhone(assignJob) && <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>📞 {extractPhone(assignJob)}</div>}
@@ -1661,12 +1953,12 @@ ${completionData.billingNotes || 'None'}
 
         {/* Tech's schedule for selected date */}
         {assignData.date && (
-          <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: assignTarget === 'austin' ? '#f0f9ff' : '#eff6ff', borderRadius: '5px', borderLeft: `4px solid ${assignTarget === 'austin' ? '#0891b2' : '#2563eb'}` }}>
+          <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: assignTarget === 'austin' ? '#f0f9ff' : assignTarget === 'sara' ? '#fdf2f8' : '#eff6ff', borderRadius: '5px', borderLeft: `4px solid ${assignTarget === 'austin' ? '#0891b2' : assignTarget === 'sara' ? '#ec4899' : '#2563eb'}` }}>
             <div style={{ fontWeight: 'bold', marginBottom: '8px', fontSize: '14px', color: '#374151' }}>
-              {assignTarget === 'austin' ? 'Austin' : 'JR'}'s schedule for {new Date(assignData.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}:
+              {assignTarget === 'austin' ? 'Austin' : assignTarget === 'sara' ? 'Sara' : 'JR'}'s schedule for {new Date(assignData.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}:
             </div>
             {(() => {
-              const techJobs = assignTarget === 'austin' ? austinJobs : jrJobs;
+              const techJobs = assignTarget === 'austin' ? austinJobs : assignTarget === 'sara' ? saraJobs : jrJobs;
               const selectedDate = assignData.date;
               const dayJobs = techJobs.filter(job => {
                 const jobDate = new Date(job.start?.dateTime || job.start?.date).toISOString().split('T')[0];
@@ -1704,8 +1996,8 @@ ${completionData.billingNotes || 'None'}
           <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Notes (optional):</label>
           <textarea value={assignData.notes} onChange={(e) => setAssignData({ ...assignData, notes: e.target.value })} rows="3" placeholder="Any special instructions..." style={{ width: '100%', padding: '10px', fontSize: '16px', borderRadius: '5px', border: '1px solid #ccc', fontFamily: 'Arial' }} />
         </div>
-        <button onClick={submitAssignment} style={{ width: '100%', padding: '15px', fontSize: '18px', backgroundColor: assignTarget === 'austin' ? '#0891b2' : '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
-          Assign to {assignTarget === 'austin' ? 'Austin' : 'JR'}
+        <button onClick={submitAssignment} style={{ width: '100%', padding: '15px', fontSize: '18px', backgroundColor: assignTarget === 'austin' ? '#0891b2' : assignTarget === 'sara' ? '#ec4899' : '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+          Assign to {assignTarget === 'austin' ? 'Austin' : assignTarget === 'sara' ? 'Sara' : 'JR'}
         </button>
       </div>
     );
@@ -1742,17 +2034,20 @@ ${completionData.billingNotes || 'None'}
         <h2>📥 Dispatch Center</h2>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: '5px', marginBottom: '20px' }}>
-          <button onClick={() => setDispatchTab('queue')} style={{ flex: 1, padding: '12px', fontSize: '14px', backgroundColor: dispatchTab === 'queue' ? '#dc2626' : '#e5e7eb', color: dispatchTab === 'queue' ? 'white' : '#374151', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: dispatchTab === 'queue' ? 'bold' : 'normal' }}>
+        <div style={{ display: 'flex', gap: '5px', marginBottom: '20px', flexWrap: 'wrap' }}>
+          <button onClick={() => setDispatchTab('queue')} style={{ flex: 1, minWidth: '60px', padding: '12px', fontSize: '13px', backgroundColor: dispatchTab === 'queue' ? '#dc2626' : '#e5e7eb', color: dispatchTab === 'queue' ? 'white' : '#374151', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: dispatchTab === 'queue' ? 'bold' : 'normal' }}>
             Queue ({queueJobs.length})
           </button>
-          <button onClick={() => setDispatchTab('austin')} style={{ flex: 1, padding: '12px', fontSize: '14px', backgroundColor: dispatchTab === 'austin' ? '#0891b2' : '#e5e7eb', color: dispatchTab === 'austin' ? 'white' : '#374151', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: dispatchTab === 'austin' ? 'bold' : 'normal' }}>
+          <button onClick={() => setDispatchTab('austin')} style={{ flex: 1, minWidth: '60px', padding: '12px', fontSize: '13px', backgroundColor: dispatchTab === 'austin' ? '#0891b2' : '#e5e7eb', color: dispatchTab === 'austin' ? 'white' : '#374151', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: dispatchTab === 'austin' ? 'bold' : 'normal' }}>
             Austin ({austinJobs.length})
           </button>
-          <button onClick={() => setDispatchTab('jr')} style={{ flex: 1, padding: '12px', fontSize: '14px', backgroundColor: dispatchTab === 'jr' ? '#2563eb' : '#e5e7eb', color: dispatchTab === 'jr' ? 'white' : '#374151', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: dispatchTab === 'jr' ? 'bold' : 'normal' }}>
+          <button onClick={() => setDispatchTab('jr')} style={{ flex: 1, minWidth: '60px', padding: '12px', fontSize: '13px', backgroundColor: dispatchTab === 'jr' ? '#2563eb' : '#e5e7eb', color: dispatchTab === 'jr' ? 'white' : '#374151', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: dispatchTab === 'jr' ? 'bold' : 'normal' }}>
             JR ({jrJobs.length})
           </button>
-          <button onClick={() => setDispatchTab('returns')} style={{ flex: 1, padding: '12px', fontSize: '14px', backgroundColor: dispatchTab === 'returns' ? '#9333ea' : '#e5e7eb', color: dispatchTab === 'returns' ? 'white' : '#374151', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: dispatchTab === 'returns' ? 'bold' : 'normal' }}>
+          <button onClick={() => setDispatchTab('sara')} style={{ flex: 1, minWidth: '60px', padding: '12px', fontSize: '13px', backgroundColor: dispatchTab === 'sara' ? '#ec4899' : '#e5e7eb', color: dispatchTab === 'sara' ? 'white' : '#374151', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: dispatchTab === 'sara' ? 'bold' : 'normal' }}>
+            Sara ({saraJobs.length})
+          </button>
+          <button onClick={() => setDispatchTab('returns')} style={{ flex: 1, minWidth: '60px', padding: '12px', fontSize: '13px', backgroundColor: dispatchTab === 'returns' ? '#9333ea' : '#e5e7eb', color: dispatchTab === 'returns' ? 'white' : '#374151', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: dispatchTab === 'returns' ? 'bold' : 'normal' }}>
             🔄 ({returnNeededJobs.length})
           </button>
         </div>
@@ -1780,14 +2075,23 @@ ${completionData.billingNotes || 'None'}
                     <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#111827' }}>{customerName}</div>
                     {extractPhone(job) && <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>📞 {extractPhone(job)}</div>}
                     {extractAddress(job) && <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>📍 {extractAddress(job)}</div>}
+                    
+                    {/* Notes Preview */}
+                    {job.description && (
+                      <div style={{ fontSize: '12px', color: '#374151', marginBottom: '8px', padding: '8px', backgroundColor: '#f9fafb', borderRadius: '6px', maxHeight: '60px', overflowY: 'auto', whiteSpace: 'pre-wrap' }}>
+                        📝 {job.description.substring(0, 150)}{job.description.length > 150 ? '...' : ''}
+                      </div>
+                    )}
+                    
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       <button onClick={() => { openCompletionForm(job, 'complete'); setShowDispatch(false); }} style={{ width: '100%', padding: '8px', fontSize: '12px', backgroundColor: '#16a34a', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>✅ Work Completed</button>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <button onClick={() => openAssignModal(job, 'austin')} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#0891b2', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Austin</button>
                         <button onClick={() => openAssignModal(job, 'jr')} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>JR</button>
+                        <button onClick={() => openAssignModal(job, 'sara')} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#ec4899', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Sara</button>
                       </div>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <button onClick={() => moveToEstimate(job)} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#ec4899', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Estimate</button>
+                        <button onClick={() => moveToEstimate(job)} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Estimate</button>
                         <button onClick={() => confirmMarkDead(job)} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>☠️ Dead</button>
                       </div>
                     </div>
@@ -1852,6 +2156,33 @@ ${completionData.billingNotes || 'None'}
           </>
         )}
 
+        {/* Sara Tab */}
+        {dispatchTab === 'sara' && (
+          <>
+            {saraJobs.length === 0 ? (
+              <div style={{ padding: '40px', textAlign: 'center', backgroundColor: '#fdf2f8', borderRadius: '10px' }}>
+                <div style={{ fontSize: '48px', marginBottom: '10px' }}>📅</div>
+                <div style={{ fontSize: '18px', color: '#be185d' }}>No tasks scheduled</div>
+              </div>
+            ) : (
+              Object.entries(groupJobsByDate(saraJobs)).map(([date, jobs]) => (
+                <div key={date}>
+                  <h3 style={{ marginTop: '15px', marginBottom: '10px', paddingBottom: '5px', borderBottom: '2px solid #ec4899', color: '#ec4899' }}>{date}</h3>
+                  {jobs.map(job => (
+                    <div key={job.id} onClick={() => { setSelectedJob({ ...job, calendarId: CALENDARS.SARA_TASKS }); setShowDispatch(false); }} style={{ padding: '12px', marginBottom: '8px', backgroundColor: '#fdf2f8', borderRadius: '5px', borderLeft: '4px solid #ec4899', cursor: 'pointer' }}>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
+                        {new Date(job.start?.dateTime || job.start?.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      </div>
+                      <div style={{ fontWeight: 'bold', color: '#111827' }}>{job.summary}</div>
+                      {job.description && <div style={{ fontSize: '12px', color: '#666', marginTop: '4px', whiteSpace: 'pre-wrap' }}>📝 {job.description.substring(0, 100)}{job.description.length > 100 ? '...' : ''}</div>}
+                    </div>
+                  ))}
+                </div>
+              ))
+            )}
+          </>
+        )}
+
         {/* Returns Tab */}
         {dispatchTab === 'returns' && (
           <>
@@ -1873,9 +2204,15 @@ ${completionData.billingNotes || 'None'}
                     <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#111827' }}>{customerName}</div>
                     {extractPhone(job) && <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>📞 {extractPhone(job)}</div>}
                     {extractAddress(job) && <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>📍 {extractAddress(job)}</div>}
+                    {job.description && (
+                      <div style={{ fontSize: '12px', color: '#374151', marginBottom: '8px', padding: '8px', backgroundColor: '#f9fafb', borderRadius: '6px', maxHeight: '60px', overflowY: 'auto', whiteSpace: 'pre-wrap' }}>
+                        📝 {job.description.substring(0, 150)}{job.description.length > 150 ? '...' : ''}
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button onClick={() => openAssignModal(job, 'austin')} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#0891b2', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Austin</button>
                       <button onClick={() => openAssignModal(job, 'jr')} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>JR</button>
+                      <button onClick={() => openAssignModal(job, 'sara')} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#ec4899', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Sara</button>
                     </div>
                   </div>
                 );
@@ -1889,58 +2226,761 @@ ${completionData.billingNotes || 'None'}
     );
   }
 
-  // Sales Queue View
+  // New Service Call Form
+  if (showNewServiceCall) {
+    return (
+      <div style={{ 
+        padding: '20px',
+        paddingBottom: '80px',
+        maxWidth: '400px',
+        margin: '0 auto',
+        fontFamily: 'Arial'
+      }}>
+        <button 
+          onClick={() => setShowNewServiceCall(false)}
+          style={{
+            marginBottom: '20px',
+            padding: '10px',
+            backgroundColor: '#666',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer'
+          }}
+        >
+          ← Cancel
+        </button>
+
+        <h2>📋 New Service Call</h2>
+        
+        {/* Customer Name - Required */}
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            👤 Customer Name <span style={{color: '#ef4444'}}>*</span>
+          </label>
+          <input 
+            type="text"
+            value={newServiceData.customerName}
+            onChange={(e) => setNewServiceData({...newServiceData, customerName: e.target.value})}
+            placeholder="Customer or business name"
+            style={{
+              width: '100%',
+              padding: '12px',
+              fontSize: '16px',
+              borderRadius: '8px',
+              border: '1px solid #ccc'
+            }}
+          />
+        </div>
+
+        {/* Phone */}
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            📞 Phone
+          </label>
+          <input 
+            type="tel"
+            value={newServiceData.phone}
+            onChange={(e) => setNewServiceData({...newServiceData, phone: e.target.value})}
+            placeholder="(555) 555-5555"
+            style={{
+              width: '100%',
+              padding: '12px',
+              fontSize: '16px',
+              borderRadius: '8px',
+              border: '1px solid #ccc'
+            }}
+          />
+        </div>
+
+        {/* Address */}
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            📍 Address
+          </label>
+          <input 
+            type="text"
+            value={newServiceData.address}
+            onChange={(e) => setNewServiceData({...newServiceData, address: e.target.value})}
+            placeholder="Full address"
+            style={{
+              width: '100%',
+              padding: '12px',
+              fontSize: '16px',
+              borderRadius: '8px',
+              border: '1px solid #ccc'
+            }}
+          />
+        </div>
+
+        {/* Source & Priority - Side by side */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+              📥 Source
+            </label>
+            <select
+              value={newServiceData.source}
+              onChange={(e) => setNewServiceData({...newServiceData, source: e.target.value})}
+              style={{
+                width: '100%',
+                padding: '12px',
+                fontSize: '14px',
+                borderRadius: '8px',
+                border: '1px solid #ccc'
+              }}
+            >
+              <option value="phone">📞 Phone</option>
+              <option value="email">📧 Email</option>
+              <option value="monitoring">📡 Monitoring</option>
+              <option value="walkin">🚶 Walk-in</option>
+              <option value="referral">👥 Referral</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+              ⚡ Priority
+            </label>
+            <select
+              value={newServiceData.priority}
+              onChange={(e) => setNewServiceData({...newServiceData, priority: e.target.value})}
+              style={{
+                width: '100%',
+                padding: '12px',
+                fontSize: '14px',
+                borderRadius: '8px',
+                border: '1px solid #ccc'
+              }}
+            >
+              <option value="urgent">🔴 Urgent</option>
+              <option value="high">🟠 High</option>
+              <option value="normal">⚪ Normal</option>
+              <option value="low">🟢 Low</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Issue/Notes */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            🔧 Issue / Notes
+          </label>
+          <textarea 
+            value={newServiceData.issue}
+            onChange={(e) => setNewServiceData({...newServiceData, issue: e.target.value})}
+            rows="4"
+            placeholder="Describe the issue, what they need, any special instructions..."
+            style={{
+              width: '100%',
+              padding: '12px',
+              fontSize: '16px',
+              borderRadius: '8px',
+              border: '1px solid #ccc',
+              fontFamily: 'Arial'
+            }}
+          />
+        </div>
+
+        <button 
+          onClick={submitNewServiceCall}
+          style={{
+            width: '100%',
+            padding: '15px',
+            fontSize: '18px',
+            backgroundColor: '#16a34a',
+            color: 'white',
+            border: 'none',
+            borderRadius: '10px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+          ✅ Create Service Call
+        </button>
+
+        <QuickLinksBar />
+      </div>
+    );
+  }
+
+  // CMS Signals View
+  if (showSignals) {
+    return (
+      <div style={{ padding: "20px", paddingBottom: "80px", maxWidth: "400px", margin: "0 auto", fontFamily: "Arial" }}>
+        <button onClick={() => { setShowSignals(false); setShowAddSignal(false); }} style={{ marginBottom: "20px", padding: "10px", backgroundColor: "#666", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}>← Back</button>
+        
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+          <h2>📡 CMS Signals</h2>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              onClick={fetchCmsSignals}
+              style={{ padding: '8px 12px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              🔄 Refresh
+            </button>
+            <button 
+              onClick={() => setShowAddSignal(!showAddSignal)}
+              style={{ padding: '8px 12px', backgroundColor: '#C41E1E', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              {showAddSignal ? '✕' : '+'}
+            </button>
+          </div>
+        </div>
+        
+        {/* Add Signal Form */}
+        {showAddSignal && (
+          <div style={{ backgroundColor: '#fef2f2', padding: '15px', borderRadius: '10px', marginBottom: '15px', border: '2px solid #C41E1E' }}>
+            <div style={{ marginBottom: '10px' }}>
+              <input 
+                type="text" 
+                placeholder="Customer Name *" 
+                value={newSignal.customer}
+                onChange={(e) => setNewSignal({...newSignal, customer: e.target.value})}
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', marginBottom: '8px' }}
+              />
+              <input 
+                type="text" 
+                placeholder="CS# (e.g., FLRS63107)" 
+                value={newSignal.csNumber}
+                onChange={(e) => setNewSignal({...newSignal, csNumber: e.target.value})}
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', marginBottom: '8px' }}
+              />
+              <select 
+                value={newSignal.signalType}
+                onChange={(e) => setNewSignal({...newSignal, signalType: e.target.value})}
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', marginBottom: '8px' }}
+              >
+                <option value="Trbl Signal">⚠️ Trouble Signal</option>
+                <option value="Suprv Signal">🔔 Supervisory Signal</option>
+                <option value="Alarm">🚨 Alarm</option>
+                <option value="Low Battery">🔋 Low Battery</option>
+                <option value="Comm Fail">📡 Comm Failure</option>
+              </select>
+              <input 
+                type="text" 
+                placeholder="Zone (e.g., Zone# 4 - VALVE TAMPER)" 
+                value={newSignal.zone}
+                onChange={(e) => setNewSignal({...newSignal, zone: e.target.value})}
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', marginBottom: '8px' }}
+              />
+              <input 
+                type="text" 
+                placeholder="Address" 
+                value={newSignal.address}
+                onChange={(e) => setNewSignal({...newSignal, address: e.target.value})}
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', marginBottom: '8px' }}
+              />
+              <input 
+                type="tel" 
+                placeholder="Phone" 
+                value={newSignal.phone}
+                onChange={(e) => setNewSignal({...newSignal, phone: e.target.value})}
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
+              />
+            </div>
+            <button 
+              onClick={() => {
+                if (!newSignal.customer) { alert('Customer name required'); return; }
+                const signal = {
+                  ...newSignal,
+                  id: Date.now(),
+                  timestamp: new Date().toISOString(),
+                  status: 'new'
+                };
+                setCmsSignals(prev => [signal, ...prev]);
+                setNewSignal({ customer: '', zone: '', signalType: 'Trbl Signal', address: '', phone: '', csNumber: '' });
+                setShowAddSignal(false);
+              }}
+              style={{ width: '100%', padding: '12px', backgroundColor: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              ✅ Add Signal
+            </button>
+          </div>
+        )}
+
+        <p style={{ color: "#666", marginBottom: "15px" }}>{cmsSignals.length} active signal{cmsSignals.length !== 1 ? 's' : ''}</p>
+        
+        {cmsSignals.length === 0 ? (
+          <div style={{ padding: "40px", textAlign: "center", backgroundColor: "#f0fdf4", borderRadius: "10px" }}>
+            <div style={{ fontSize: "48px", marginBottom: "10px" }}>✅</div>
+            <div style={{ fontSize: "18px", color: "#16a34a" }}>No active signals</div>
+            <div style={{ fontSize: "14px", color: "#666", marginTop: "10px" }}>Signals from CMS monitoring will appear here</div>
+          </div>
+        ) : (
+          cmsSignals.map(signal => (
+            <div key={signal.id} style={{ 
+              padding: "15px", 
+              marginBottom: "12px", 
+              backgroundColor: "#fff", 
+              border: "1px solid #fecaca", 
+              borderRadius: "10px", 
+              borderLeft: `4px solid ${signal.signalType === 'Alarm' ? '#dc2626' : signal.signalType === 'Comm Fail' ? '#7c3aed' : '#f59e0b'}` 
+            }}>
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <span style={{ 
+                  padding: '4px 8px', 
+                  backgroundColor: signal.signalType === 'Alarm' ? '#fee2e2' : '#fef3c7', 
+                  color: signal.signalType === 'Alarm' ? '#dc2626' : '#d97706', 
+                  borderRadius: '4px', 
+                  fontSize: '11px', 
+                  fontWeight: 'bold' 
+                }}>
+                  {signal.signalType === 'Trbl Signal' && '⚠️ TROUBLE'}
+                  {signal.signalType === 'Suprv Signal' && '🔔 SUPERVISORY'}
+                  {signal.signalType === 'Alarm' && '🚨 ALARM'}
+                  {signal.signalType === 'Low Battery' && '🔋 LOW BATTERY'}
+                  {signal.signalType === 'Comm Fail' && '📡 COMM FAIL'}
+                </span>
+                <span style={{ fontSize: "11px", color: "#666" }}>
+                  {new Date(signal.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+              
+              {/* Customer & CS# */}
+              <div style={{ fontWeight: "bold", fontSize: "16px", color: "#111" }}>{signal.customer}</div>
+              {signal.csNumber && <div style={{ fontSize: "12px", color: "#666" }}>CS# {signal.csNumber}</div>}
+              
+              {/* Zone */}
+              {signal.zone && <div style={{ fontSize: "14px", color: "#C41E1E", marginTop: "6px" }}>{signal.zone}</div>}
+              
+              {/* Address & Phone */}
+              {signal.address && (
+                <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(signal.address)}`} 
+                   target="_blank" rel="noopener noreferrer"
+                   style={{ display: "block", fontSize: "13px", color: "#666", marginTop: "6px", textDecoration: "none" }}>
+                  📍 {signal.address}
+                </a>
+              )}
+              {signal.phone && (
+                <a href={`tel:${signal.phone}`} style={{ display: "block", fontSize: "14px", color: "#2563eb", marginTop: "4px", textDecoration: "none" }}>
+                  📞 {signal.phone}
+                </a>
+              )}
+              
+              {/* Actions */}
+              <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                <button 
+                  onClick={async () => {
+                    // Convert to service call
+                    setNewServiceData({
+                      customerName: signal.customer,
+                      phone: signal.phone || '',
+                      address: signal.address || '',
+                      issue: `CMS Signal: ${signal.signalType}\n${signal.zone}\nCS# ${signal.csNumber || 'N/A'}`,
+                      priority: signal.signalType === 'Alarm' ? 'urgent' : 'high',
+                      source: 'monitoring'
+                    });
+                    // Mark email as read
+                    if (signal.emailId) {
+                      markEmailRead(signal.emailId);
+                    }
+                    setCmsSignals(prev => prev.filter(s => s.id !== signal.id));
+                    setShowSignals(false);
+                    setShowNewServiceCall(true);
+                  }}
+                  style={{ flex: 1, padding: "10px", backgroundColor: "#C41E1E", color: "white", border: "none", borderRadius: "6px", fontWeight: "bold", cursor: "pointer" }}
+                >
+                  🔴 Create Service Call
+                </button>
+                <button 
+                  onClick={async () => {
+                    if (confirm('Dismiss this signal?')) {
+                      // Mark email as read
+                      if (signal.emailId) {
+                        await markEmailRead(signal.emailId);
+                      }
+                      setCmsSignals(prev => prev.filter(s => s.id !== signal.id));
+                    }
+                  }}
+                  style={{ padding: "10px 15px", backgroundColor: "#6b7280", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+        
+        <QuickLinksBar />
+      </div>
+    );
+  }
+
+  // Sales Job Detail View
+  if (selectedSalesJob) {
+    const job = selectedSalesJob;
+    const customerName = job.summary.replace('[ESTIMATE NEEDED]', '').replace('[ESTIMATE SENT]', '').replace('[SERVICE]', '').replace('[FOLLOW UP]', '').trim();
+    const phone = extractPhone(job);
+    const address = extractAddress(job);
+    const hasEstimateSent = job.summary.includes('[ESTIMATE SENT]');
+    const hasFollowUp = job.summary.includes('[FOLLOW UP]');
+
+    return (
+      <div style={{ padding: "20px", paddingBottom: "80px", maxWidth: "400px", margin: "0 auto", fontFamily: "Arial" }}>
+        <button onClick={() => setSelectedSalesJob(null)} style={{ marginBottom: "20px", padding: "10px", backgroundColor: "#666", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}>← Back to Sales Queue</button>
+        
+        {/* Status badges */}
+        <div style={{ marginBottom: '15px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {hasEstimateSent && (
+            <span style={{ padding: '6px 12px', backgroundColor: '#dcfce7', color: '#16a34a', borderRadius: '20px', fontSize: '12px', fontWeight: '600' }}>✅ ESTIMATE SENT</span>
+          )}
+          {hasFollowUp && (
+            <span style={{ padding: '6px 12px', backgroundColor: '#fef3c7', color: '#d97706', borderRadius: '20px', fontSize: '12px', fontWeight: '600' }}>📞 FOLLOW UP</span>
+          )}
+          {!hasEstimateSent && !hasFollowUp && (
+            <span style={{ padding: '6px 12px', backgroundColor: '#fce7f3', color: '#be185d', borderRadius: '20px', fontSize: '12px', fontWeight: '600' }}>🆕 NEW LEAD</span>
+          )}
+        </div>
+
+        {/* Customer Name */}
+        <h2 style={{ margin: '0 0 20px 0', color: '#111' }}>{customerName}</h2>
+        
+        {/* Contact Info */}
+        {phone && (
+          <a href={`tel:${phone}`} style={{
+            display: 'block',
+            padding: '15px',
+            backgroundColor: '#eff6ff',
+            borderRadius: '10px',
+            marginBottom: '10px',
+            textDecoration: 'none',
+            color: '#2563eb',
+            fontSize: '18px',
+            fontWeight: '600'
+          }}>
+            📞 {phone}
+          </a>
+        )}
+        
+        {address && (
+          <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`} 
+             target="_blank" rel="noopener noreferrer"
+             style={{
+               display: 'block',
+               padding: '15px',
+               backgroundColor: '#f0fdf4',
+               borderRadius: '10px',
+               marginBottom: '15px',
+               textDecoration: 'none',
+               color: '#16a34a',
+               fontSize: '14px'
+             }}>
+            📍 {address}
+          </a>
+        )}
+        
+        {/* Full Notes */}
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#333' }}>📝 Full Notes:</div>
+          <div style={{
+            backgroundColor: '#f9fafb',
+            padding: '15px',
+            borderRadius: '10px',
+            fontSize: '14px',
+            whiteSpace: 'pre-wrap',
+            maxHeight: '300px',
+            overflowY: 'auto',
+            border: '1px solid #e5e7eb'
+          }}>
+            {job.description || 'No notes yet'}
+          </div>
+        </div>
+        
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <button onClick={async () => {
+            const newSummary = `[INSTALLATION] ${customerName}`;
+            const soldNotes = `\n\n━━━ SOLD ━━━\n📅 ${new Date().toLocaleDateString()}\n👤 ${userEmail}\n`;
+            try {
+              await moveEventToCalendar(job, CALENDARS.SERVICE_QUEUE, newSummary, (job.description || '') + soldNotes);
+              setSalesQueueJobs(prev => prev.filter(j => j.id !== job.id));
+              setSelectedSalesJob(null);
+              alert('🎉 SOLD! Moved to installation queue');
+            } catch(e) { alert('Error'); }
+          }} style={{ 
+            padding: "15px", 
+            fontSize: "16px", 
+            backgroundColor: "#16a34a", 
+            color: "white", 
+            border: "none", 
+            borderRadius: "10px", 
+            cursor: "pointer", 
+            fontWeight: "bold" 
+          }}>🎉 SOLD - Move to Installation</button>
+          
+          {!hasEstimateSent && (
+            <button onClick={async () => {
+              const newSummary = `[ESTIMATE SENT] ${customerName}`;
+              const sentNotes = `\n\n━━━ ESTIMATE SENT ━━━\n📅 ${new Date().toLocaleDateString()}\n👤 ${userEmail}\n`;
+              try {
+                await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(job.calendarId)}/events/${job.id}`, {
+                  method: 'PATCH',
+                  headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ summary: newSummary, description: (job.description || '') + sentNotes })
+                });
+                await fetchSalesQueue();
+                setSelectedSalesJob(null);
+                alert('✅ Marked as Estimate Sent');
+              } catch(e) { alert('Error'); }
+            }} style={{ 
+              padding: "15px", 
+              fontSize: "16px", 
+              backgroundColor: "#2563eb", 
+              color: "white", 
+              border: "none", 
+              borderRadius: "10px", 
+              cursor: "pointer", 
+              fontWeight: "bold" 
+            }}>📨 Mark Estimate Sent</button>
+          )}
+          
+          {hasEstimateSent && !hasFollowUp && (
+            <button onClick={async () => {
+              const newSummary = `[FOLLOW UP] [ESTIMATE SENT] ${customerName}`;
+              const followNotes = `\n\n━━━ FOLLOW UP NEEDED ━━━\n📅 ${new Date().toLocaleDateString()}\n👤 ${userEmail}\n`;
+              try {
+                await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(job.calendarId)}/events/${job.id}`, {
+                  method: 'PATCH',
+                  headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ summary: newSummary, description: (job.description || '') + followNotes })
+                });
+                await fetchSalesQueue();
+                setSelectedSalesJob(null);
+                alert('📞 Follow up scheduled');
+              } catch(e) { alert('Error'); }
+            }} style={{ 
+              padding: "15px", 
+              fontSize: "16px", 
+              backgroundColor: "#f59e0b", 
+              color: "white", 
+              border: "none", 
+              borderRadius: "10px", 
+              cursor: "pointer", 
+              fontWeight: "bold" 
+            }}>📞 Mark for Follow Up</button>
+          )}
+          
+          <button onClick={async () => {
+            if (!confirm('Mark as lost?')) return;
+            const newSummary = `[LOST] ${customerName}`;
+            const lostNotes = `\n\n━━━ LOST ━━━\n📅 ${new Date().toLocaleDateString()}\n👤 ${userEmail}\n`;
+            try {
+              await moveEventToCalendar(job, CALENDARS.COMPLETED, newSummary, (job.description || '') + lostNotes);
+              setSalesQueueJobs(prev => prev.filter(j => j.id !== job.id));
+              setSelectedSalesJob(null);
+              alert('Marked as Lost');
+            } catch(e) { alert('Error'); }
+          }} style={{ 
+            padding: "15px", 
+            fontSize: "16px", 
+            backgroundColor: "#6b7280", 
+            color: "white", 
+            border: "none", 
+            borderRadius: "10px", 
+            cursor: "pointer", 
+            fontWeight: "bold" 
+          }}>❌ Mark as Lost</button>
+        </div>
+        
+        <QuickLinksBar />
+      </div>
+    );
+  }
+
+  // Sales Queue View - JR's Estimate Queue
   if (showSalesQueue) {
     return (
       <div style={{ padding: "20px", paddingBottom: "80px", maxWidth: "400px", margin: "0 auto", fontFamily: "Arial" }}>
         <button onClick={() => setShowSalesQueue(false)} style={{ marginBottom: "20px", padding: "10px", backgroundColor: "#666", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}>← Back</button>
         <h2>💰 Sales Queue</h2>
-        <p style={{ color: "#666", marginBottom: "15px" }}>{salesQueueJobs.length} estimate{salesQueueJobs.length !== 1 ? "s" : ""} needed</p>
+        <p style={{ color: "#666", marginBottom: "15px" }}>{salesQueueJobs.length} estimate{salesQueueJobs.length !== 1 ? "s" : ""} pending</p>
+        
         {salesQueueJobs.length === 0 ? (
           <div style={{ padding: "40px", textAlign: "center", backgroundColor: "#fdf2f8", borderRadius: "10px" }}>
             <div style={{ fontSize: "48px", marginBottom: "10px" }}>✅</div>
-            <div style={{ fontSize: "18px", color: "#be185d" }}>No pending estimates!</div>
+            <div style={{ fontSize: "18px", color: "#be185d" }}>All caught up!</div>
           </div>
         ) : (
           salesQueueJobs.map(job => {
             const age = getQueueAge(job);
-            const customerName = job.summary.replace('[ESTIMATE NEEDED]', '').replace('[SERVICE]', '').trim();
+            const customerName = job.summary.replace('[ESTIMATE NEEDED]', '').replace('[ESTIMATE SENT]', '').replace('[SERVICE]', '').replace('[FOLLOW UP]', '').trim();
+            const hasEstimateSent = job.summary.includes('[ESTIMATE SENT]');
+            const hasFollowUp = job.summary.includes('[FOLLOW UP]');
+            const phone = extractPhone(job);
+            const address = extractAddress(job);
+            
             return (
-              <div key={job.id} style={{ padding: "15px", marginBottom: "10px", backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", borderLeft: "4px solid #ec4899" }}>
+              <div key={job.id} style={{ 
+                padding: "15px", 
+                marginBottom: "12px", 
+                backgroundColor: "#fff", 
+                border: "1px solid #e5e7eb", 
+                borderRadius: "10px", 
+                borderLeft: `4px solid ${hasEstimateSent ? '#16a34a' : hasFollowUp ? '#f59e0b' : '#ec4899'}` 
+              }}>
+                {/* Header with age */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                  <span style={{ fontSize: "12px", color: "#666" }}>{new Date(job.created).toLocaleDateString()}</span>
-                  <span style={{ fontSize: "12px", color: age.color, fontWeight: "bold" }}>{age.emoji} {age.days} days</span>
+                  <span style={{ fontSize: "12px", color: "#666" }}>
+                    {hasEstimateSent && "✅ ESTIMATE SENT • "}
+                    {hasFollowUp && "📞 FOLLOW UP • "}
+                    {new Date(job.start?.dateTime || job.created).toLocaleDateString()}
+                  </span>
+                  <span style={{ fontSize: "12px", color: age.color, fontWeight: "bold" }}>{age.emoji} {age.days}d</span>
                 </div>
-                <div style={{ fontWeight: "bold", marginBottom: "8px", color: "#111827" }}>{customerName}</div>
-                {extractPhone(job) && <div style={{ fontSize: "14px", color: "#666", marginBottom: "4px" }}>📞 {extractPhone(job)}</div>}
-                {extractAddress(job) && <div style={{ fontSize: "14px", color: "#666", marginBottom: "8px" }}>📍 {extractAddress(job)}</div>}
-                <div style={{ fontSize: "12px", color: "#666", marginBottom: "10px", whiteSpace: "pre-wrap" }}>{job.description?.substring(0, 200) || "No notes"}</div>
-                <div style={{ display: "flex", gap: "6px" }}>
+                
+                {/* Customer name */}
+                <div style={{ fontWeight: "bold", fontSize: "16px", marginBottom: "10px", color: "#111827" }}>{customerName}</div>
+                
+                {/* Contact info */}
+                {phone && (
+                  <a href={`tel:${phone}`} style={{ 
+                    display: "block", 
+                    fontSize: "15px", 
+                    color: "#2563eb", 
+                    marginBottom: "6px",
+                    textDecoration: "none"
+                  }}>📞 {phone}</a>
+                )}
+                {address && (
+                  <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`} 
+                     target="_blank" rel="noopener noreferrer"
+                     style={{ display: "block", fontSize: "14px", color: "#666", marginBottom: "10px", textDecoration: "none" }}>
+                    📍 {address}
+                  </a>
+                )}
+                
+                {/* Notes preview */}
+                <div style={{ 
+                  fontSize: "13px", 
+                  color: "#666", 
+                  marginBottom: "12px", 
+                  whiteSpace: "pre-wrap",
+                  backgroundColor: "#f9fafb",
+                  padding: "10px",
+                  borderRadius: "6px",
+                  maxHeight: "100px",
+                  overflowY: "auto"
+                }}>
+                  {job.description?.substring(0, 300) || "No notes"}
+                </div>
+                
+                {/* OPEN BUTTON - Full width */}
+                <button 
+                  onClick={() => setSelectedSalesJob(job)}
+                  style={{ 
+                    width: "100%",
+                    padding: "12px", 
+                    fontSize: "14px", 
+                    backgroundColor: "#0A2240", 
+                    color: "white", 
+                    border: "none", 
+                    borderRadius: "8px", 
+                    cursor: "pointer", 
+                    fontWeight: "bold",
+                    marginBottom: "10px"
+                  }}>📂 OPEN - View Full Details</button>
+                
+                {/* Action buttons - 2x2 grid */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  {/* SOLD - moves to installation queue */}
                   <button onClick={async () => {
-                    const newSummary = job.summary.replace('[ESTIMATE NEEDED]', '[ESTIMATE SENT]');
+                    const newSummary = `[INSTALLATION] ${customerName}`;
+                    const soldNotes = `\n\n━━━ SOLD ━━━\n📅 ${new Date().toLocaleDateString()}\n👤 ${userEmail}\n`;
                     try {
-                      await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(job.calendarId)}/events/${job.id}`, {
-                        method: 'PATCH',
-                        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ summary: newSummary, description: (job.description || '') + `\n\nEstimate sent by: ${userEmail} on ${new Date().toLocaleDateString()}` })
-                      });
+                      await moveEventToCalendar(job, CALENDARS.SERVICE_QUEUE, newSummary, (job.description || '') + soldNotes);
                       setSalesQueueJobs(prev => prev.filter(j => j.id !== job.id));
-                      alert('Marked as Estimate Sent');
+                      alert('🎉 SOLD! Moved to installation queue');
                     } catch(e) { alert('Error'); }
-                  }} style={{ flex: 1, padding: "10px", fontSize: "12px", backgroundColor: "#16a34a", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>✅ Estimate Sent</button>
+                  }} style={{ 
+                    padding: "12px", 
+                    fontSize: "14px", 
+                    backgroundColor: "#16a34a", 
+                    color: "white", 
+                    border: "none", 
+                    borderRadius: "8px", 
+                    cursor: "pointer", 
+                    fontWeight: "bold" 
+                  }}>🎉 SOLD</button>
+                  
+                  {/* ESTIMATE SENT */}
+                  {!hasEstimateSent && (
+                    <button onClick={async () => {
+                      const newSummary = `[ESTIMATE SENT] ${customerName}`;
+                      const sentNotes = `\n\n━━━ ESTIMATE SENT ━━━\n📅 ${new Date().toLocaleDateString()}\n👤 ${userEmail}\n`;
+                      try {
+                        await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(job.calendarId)}/events/${job.id}`, {
+                          method: 'PATCH',
+                          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ summary: newSummary, description: (job.description || '') + sentNotes })
+                        });
+                        await fetchSalesQueue();
+                        alert('✅ Marked as Estimate Sent');
+                      } catch(e) { alert('Error'); }
+                    }} style={{ 
+                      padding: "12px", 
+                      fontSize: "14px", 
+                      backgroundColor: "#2563eb", 
+                      color: "white", 
+                      border: "none", 
+                      borderRadius: "8px", 
+                      cursor: "pointer", 
+                      fontWeight: "bold" 
+                    }}>📨 SENT</button>
+                  )}
+                  
+                  {/* FOLLOW UP */}
+                  {hasEstimateSent && !hasFollowUp && (
+                    <button onClick={async () => {
+                      const newSummary = `[FOLLOW UP] [ESTIMATE SENT] ${customerName}`;
+                      const followNotes = `\n\n━━━ FOLLOW UP NEEDED ━━━\n📅 ${new Date().toLocaleDateString()}\n👤 ${userEmail}\n`;
+                      try {
+                        await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(job.calendarId)}/events/${job.id}`, {
+                          method: 'PATCH',
+                          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ summary: newSummary, description: (job.description || '') + followNotes })
+                        });
+                        await fetchSalesQueue();
+                        alert('📞 Follow up scheduled');
+                      } catch(e) { alert('Error'); }
+                    }} style={{ 
+                      padding: "12px", 
+                      fontSize: "14px", 
+                      backgroundColor: "#f59e0b", 
+                      color: "white", 
+                      border: "none", 
+                      borderRadius: "8px", 
+                      cursor: "pointer", 
+                      fontWeight: "bold" 
+                    }}>📞 FOLLOW UP</button>
+                  )}
+                  
+                  {/* LOST */}
                   <button onClick={async () => {
-                    const newSummary = `[LOST] ${job.summary.replace('[ESTIMATE NEEDED]', '').trim()}`;
+                    if (!confirm('Mark as lost?')) return;
+                    const newSummary = `[LOST] ${customerName}`;
+                    const lostNotes = `\n\n━━━ LOST ━━━\n📅 ${new Date().toLocaleDateString()}\n👤 ${userEmail}\n`;
                     try {
-                      await moveEventToCalendar(job, CALENDARS.COMPLETED, newSummary, (job.description || '') + `\n\nMarked LOST by: ${userEmail} on ${new Date().toLocaleDateString()}`);
+                      await moveEventToCalendar(job, CALENDARS.COMPLETED, newSummary, (job.description || '') + lostNotes);
                       setSalesQueueJobs(prev => prev.filter(j => j.id !== job.id));
                       alert('Marked as Lost');
                     } catch(e) { alert('Error'); }
-                  }} style={{ flex: 1, padding: "10px", fontSize: "12px", backgroundColor: "#6b7280", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", fontWeight: "bold" }}>❌ Lost</button>
+                  }} style={{ 
+                    padding: "12px", 
+                    fontSize: "14px", 
+                    backgroundColor: "#6b7280", 
+                    color: "white", 
+                    border: "none", 
+                    borderRadius: "8px", 
+                    cursor: "pointer", 
+                    fontWeight: "bold" 
+                  }}>❌ LOST</button>
                 </div>
               </div>
             );
           })
         )}
+        <QuickLinksBar />
       </div>
     );
   }
@@ -2017,6 +3057,24 @@ ${completionData.billingNotes || 'None'}
               </div>
               <div style={{ fontWeight: "bold", marginBottom: "5px", color: "#111827" }}>{job.summary.replace("[COMPLETE]", "").trim()}</div>
               <div style={{ fontSize: "12px", color: "#666" }}>{new Date(job.start?.dateTime || job.start?.date).toLocaleDateString()}</div>
+              
+              {/* Notes Preview */}
+              {job.description && (
+                <div style={{ 
+                  fontSize: "12px", 
+                  color: "#374151", 
+                  marginTop: "8px", 
+                  padding: "8px", 
+                  backgroundColor: "#f3f4f6", 
+                  borderRadius: "6px",
+                  maxHeight: "60px",
+                  overflowY: "auto",
+                  whiteSpace: "pre-wrap"
+                }}>
+                  📝 {job.description.substring(0, 200)}{job.description.length > 200 ? '...' : ''}
+                </div>
+              )}
+              
               <div style={{ fontSize: "11px", color: "#2563eb", marginTop: "8px" }}>Tap to take action →</div>
             </div>
             );
@@ -2788,98 +3846,110 @@ if (showTasks) {
             </div>
           )}
           
-          {selectedJob.description && (
-            <div style={{ marginBottom: '15px' }}>
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                marginBottom: '5px' 
-              }}>
-                <div style={{ fontWeight: 'bold' }}>Notes:</div>
-                {!editingNotes && (
+          {/* Notes Section - Always show, allow adding */}
+          <div style={{ marginBottom: '15px' }}>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              marginBottom: '5px' 
+            }}>
+              <div style={{ fontWeight: 'bold' }}>Notes:</div>
+              {!editingNotes && (
+                <button
+                  onClick={() => {
+                    setEditingNotes(true);
+                    setEditedNotes(selectedJob.description || '');
+                  }}
+                  style={{
+                    padding: '5px 15px',
+                    fontSize: '12px',
+                    backgroundColor: '#2563eb',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {selectedJob.description ? 'Edit' : '+ Add'}
+                </button>
+              )}
+            </div>
+            
+            {editingNotes ? (
+              <>
+                <textarea
+                  value={editedNotes}
+                  onChange={(e) => setEditedNotes(e.target.value)}
+                  placeholder="Add notes here..."
+                  style={{
+                    width: '100%',
+                    minHeight: '150px',
+                    padding: '10px',
+                    fontSize: '14px',
+                    borderRadius: '5px',
+                    border: '1px solid #e5e7eb',
+                    fontFamily: 'inherit',
+                    resize: 'vertical'
+                  }}
+                />
+                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                   <button
-                    onClick={() => {
-                      setEditingNotes(true);
-                      setEditedNotes(selectedJob.description);
-                    }}
+                    onClick={() => updateJobNotes(selectedJob, editedNotes)}
                     style={{
-                      padding: '5px 15px',
-                      fontSize: '12px',
-                      backgroundColor: '#2563eb',
+                      flex: 1,
+                      padding: '10px',
+                      backgroundColor: '#16a34a',
                       color: 'white',
                       border: 'none',
-                      borderRadius: '4px',
+                      borderRadius: '5px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    💾 Save Notes
+                  </button>
+                  <button
+                    onClick={() => setEditingNotes(false)}
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      backgroundColor: '#6b7280',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
                       cursor: 'pointer'
                     }}
                   >
-                    Edit
+                    Cancel
                   </button>
-                )}
-              </div>
-              
-              {editingNotes ? (
-                <>
-                  <textarea
-                    value={editedNotes}
-                    onChange={(e) => setEditedNotes(e.target.value)}
-                    style={{
-                      width: '100%',
-                      minHeight: '150px',
-                      padding: '10px',
-                      fontSize: '14px',
-                      borderRadius: '5px',
-                      border: '1px solid #e5e7eb',
-                      fontFamily: 'inherit',
-                      resize: 'vertical'
-                    }}
-                  />
-                  <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                    <button
-                      onClick={() => updateJobNotes(selectedJob, editedNotes)}
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        backgroundColor: '#16a34a',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      💾 Save Notes
-                    </button>
-                    <button
-                      onClick={() => setEditingNotes(false)}
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        backgroundColor: '#6b7280',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '5px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div style={{ 
-                  whiteSpace: 'pre-wrap', 
-                  backgroundColor: '#fff',
-                  padding: '10px',
-                  borderRadius: '5px',
-                  fontSize: '14px',
-                  border: '1px solid #e5e7eb'
-                }}>
-                  <div dangerouslySetInnerHTML={{ __html: selectedJob.description || "" }} />
                 </div>
-              )}
-            </div>
-          )}
+              </>
+            ) : selectedJob.description ? (
+              <div style={{ 
+                whiteSpace: 'pre-wrap', 
+                backgroundColor: '#fff',
+                padding: '10px',
+                borderRadius: '5px',
+                fontSize: '14px',
+                border: '1px solid #e5e7eb'
+              }}>
+                <div dangerouslySetInnerHTML={{ __html: selectedJob.description || "" }} />
+              </div>
+            ) : (
+              <div style={{ 
+                padding: '15px',
+                backgroundColor: '#f9fafb',
+                borderRadius: '5px',
+                fontSize: '14px',
+                color: '#9ca3af',
+                textAlign: 'center',
+                border: '1px dashed #e5e7eb'
+              }}>
+                No notes yet - tap "+ Add" to add notes
+              </div>
+            )}
+          </div>
 
           {!isComplete && (
             <button 
@@ -3282,199 +4352,467 @@ if (showTasks) {
       )}
 
       <div style={{ padding: '0 20px' }}>
-      
-      {canSeeCommandCenter && (
-      <button
-        onClick={() => fetchDispatchData(90)}
-        className="btn-main btn-dispatch"
-        style={{
-          width: "100%",
-          height: "70px",
-          fontSize: "18px",
-          marginBottom: "12px",
-          backgroundColor: "#0A2240",
-          color: "white",
-          border: "none",
-          borderRadius: "12px",
-          cursor: "pointer",
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontWeight: "600",
-          boxShadow: "0 2px 8px rgba(10,34,64,0.2)"
-        }}
-      >
-        📥 DISPATCH
-      </button>
-      )}
+        
+        {/* TECH VIEW - Simple focused cards */}
+        {isTech && (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <div 
+                onClick={() => viewJobs('today')}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #2563eb'
+                }}
+              >
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>Today's Jobs</div>
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>View schedule</div>
+              </div>
+              
+              <div 
+                onClick={() => viewJobs('week')}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #16a34a'
+                }}
+              >
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>📅</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>This Week</div>
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>Week view</div>
+              </div>
+            </div>
+            
+            <div 
+              onClick={() => setShowPastJobs(true)}
+              style={{
+                backgroundColor: '#fff',
+                borderRadius: '16px',
+                padding: '20px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                borderLeft: '4px solid #8b5cf6'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ fontSize: '28px' }}>🕐</div>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>Past Jobs</div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>Search history</div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
-      <button
-        onClick={fetchTasks}
-        style={{
-          width: '100%',
-          height: '70px',
-          fontSize: '18px',
-          marginBottom: '12px',
-          backgroundColor: '#f59e0b',
-          color: 'white',
-          border: 'none',
-          borderRadius: '12px',
-          cursor: 'pointer',
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontWeight: '600',
-          boxShadow: '0 2px 8px rgba(245,158,11,0.3)'
-        }}
-      >
-        📋 TODAY'S TASKS
-      </button>
+        {/* OWNER VIEW (JR) - Sales focused */}
+        {effectiveRole === 'owner' && !isTech && (
+          <>
+            {/* Top row - Today + Sales */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <div 
+                onClick={() => viewJobs('today')}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #2563eb'
+                }}
+              >
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>Today's Jobs</div>
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>View schedule</div>
+              </div>
+              
+              <div 
+                onClick={fetchSalesQueue}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #ec4899'
+                }}
+              >
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>💰</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>Sales Queue</div>
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>Estimates pending</div>
+              </div>
+            </div>
 
-      <button
-        onClick={() => viewJobs('today')}
-        style={{
-          width: '100%',
-          height: '70px',
-          fontSize: '18px',
-          marginBottom: '12px',
-          backgroundColor: '#2563eb',
-          color: 'white',
-          border: 'none',
-          borderRadius: '12px',
-          cursor: 'pointer',
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontWeight: '600',
-          boxShadow: '0 2px 8px rgba(37,99,235,0.3)'
-        }}
-      >
-        📋 TODAY'S JOBS
-      </button>
+            {/* Second row - This Week + Past */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <div 
+                onClick={() => viewJobs('week')}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #16a34a'
+                }}
+              >
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>📅</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>This Week</div>
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>Week view</div>
+              </div>
+              
+              <div 
+                onClick={() => setShowPastJobs(true)}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #8b5cf6'
+                }}
+              >
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>🕐</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>Past Jobs</div>
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>Search history</div>
+              </div>
+            </div>
+          </>
+        )}
 
-      {!isTech && (
-      <button
-        onClick={() => fetchToBeBilled(30)}
-        style={{
-          width: "100%",
-          height: "70px",
-          fontSize: "18px",
-          marginBottom: "12px",
-          backgroundColor: "#16a34a",
-          color: "white",
-          border: "none",
-          borderRadius: "12px",
-          cursor: "pointer",
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontWeight: "600",
-          boxShadow: "0 2px 8px rgba(22,163,74,0.3)"
-        }}
-      >
-        💰 TO BE BILLED
-      </button>
-      )}
+        {/* COMMAND CENTER VIEW - Dispatch focused */}
+        {effectiveRole === 'command' && (
+          <>
+            {/* Big Dispatch Button */}
+            <div 
+              onClick={() => fetchDispatchData(90)}
+              style={{
+                backgroundColor: '#0A2240',
+                borderRadius: '16px',
+                padding: '24px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(10,34,64,0.3)',
+                marginBottom: '12px',
+                textAlign: 'center'
+              }}
+            >
+              <div style={{ fontSize: '40px', marginBottom: '8px' }}>📥</div>
+              <div style={{ fontSize: '18px', fontWeight: '700', color: '#fff' }}>DISPATCH CENTER</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>Queue • Schedule • Assign</div>
+            </div>
 
-      {!isTech && (
-      <button
-        onClick={fetchSalesQueue}
-        style={{
-          width: "100%",
-          height: "70px",
-          fontSize: "18px",
-          marginBottom: "12px",
-          backgroundColor: "#ec4899",
-          color: "white",
-          border: "none",
-          borderRadius: "12px",
-          cursor: "pointer",
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontWeight: "600",
-          boxShadow: "0 2px 8px rgba(236,72,153,0.3)"
-        }}
-      >
-        💰 SALES QUEUE
-      </button>
-      )}
+            {/* CMS Signals - Prominent */}
+            <div 
+              onClick={() => { fetchCmsSignals(); setShowSignals(true); }}
+              style={{
+                backgroundColor: cmsSignals.length > 0 ? '#fef2f2' : '#fff',
+                borderRadius: '16px',
+                padding: '16px 20px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                borderLeft: `4px solid ${cmsSignals.length > 0 ? '#dc2626' : '#f59e0b'}`,
+                marginBottom: '12px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ fontSize: '28px' }}>📡</div>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>CMS Signals</div>
+                  <div style={{ fontSize: '11px', color: '#666' }}>Monitoring alerts</div>
+                </div>
+              </div>
+              {cmsSignals.length > 0 && (
+                <div style={{ 
+                  backgroundColor: '#dc2626', 
+                  color: 'white', 
+                  padding: '4px 12px', 
+                  borderRadius: '20px', 
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  animation: 'pulse 2s infinite'
+                }}>
+                  {cmsSignals.length}
+                </div>
+              )}
+            </div>
 
-      {!isTech && (
-      <button
-        onClick={createServiceCall}
-        style={{
-          width: '100%',
-          height: '70px',
-          fontSize: '18px',
-          marginBottom: '12px',
-          backgroundColor: '#C41E1E',
-          color: 'white',
-          border: 'none',
-          borderRadius: '12px',
-          cursor: 'pointer',
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontWeight: '600',
-          boxShadow: '0 2px 8px rgba(196,30,30,0.3)'
-        }}
-      >
-        🔴 SERVICE CALL
-      </button>
-      )}
+            {/* 2x2 Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <div 
+                onClick={openNewServiceCall}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #C41E1E'
+                }}
+              >
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>🔴</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>New Service Call</div>
+              </div>
+              
+              <div 
+                onClick={() => fetchToBeBilled(30)}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #16a34a'
+                }}
+              >
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>💵</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>To Be Billed</div>
+              </div>
+              
+              <div 
+                onClick={fetchSalesQueue}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #ec4899'
+                }}
+              >
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>💰</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>Sales Queue</div>
+              </div>
+              
+              <div 
+                onClick={() => viewJobs('today')}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #2563eb'
+                }}
+              >
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>📋</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>Today's Jobs</div>
+              </div>
+            </div>
 
-      <button
-        onClick={() => viewJobs('week')}
-        style={{
-          width: '100%',
-          height: '70px',
-          fontSize: '18px',
-          marginBottom: '12px',
-          backgroundColor: '#16a34a',
-          color: 'white',
-          border: 'none',
-          borderRadius: '12px',
-          cursor: 'pointer',
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontWeight: '600',
-          boxShadow: '0 2px 8px rgba(22,163,74,0.3)'
-        }}
-      >
-        📅 THIS WEEK
-      </button>
+            {/* Bottom row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div 
+                onClick={() => viewJobs('week')}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #6b7280'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '24px' }}>📅</span>
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#111' }}>This Week</span>
+                </div>
+              </div>
+              
+              <div 
+                onClick={() => setShowPastJobs(true)}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #8b5cf6'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '24px' }}>🕐</span>
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#111' }}>Past Jobs</span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
-      {!isTech && (
-      <button
-        onClick={async () => {
-          await viewJobs('today');
-        }}
-        style={{
-          width: '100%',
-          height: '70px',
-          fontSize: '18px',
-          marginBottom: '12px',
-          backgroundColor: '#6b7280',
-          color: 'white',
-          border: 'none',
-          borderRadius: '12px',
-          cursor: 'pointer',
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontWeight: '600',
-          boxShadow: '0 2px 8px rgba(107,114,128,0.3)'
-        }}
-      >
-        🔁 RETURN VISIT
-      </button>
-      )}
+        {/* ADMIN VIEW - Everything */}
+        {effectiveRole === 'admin' && (
+          <>
+            {/* Big Dispatch Button */}
+            <div 
+              onClick={() => fetchDispatchData(90)}
+              style={{
+                backgroundColor: '#0A2240',
+                borderRadius: '16px',
+                padding: '24px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(10,34,64,0.3)',
+                marginBottom: '12px',
+                textAlign: 'center'
+              }}
+            >
+              <div style={{ fontSize: '40px', marginBottom: '8px' }}>📥</div>
+              <div style={{ fontSize: '18px', fontWeight: '700', color: '#fff' }}>DISPATCH CENTER</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>Queue • Schedule • Assign</div>
+            </div>
 
-      <button
-        onClick={() => setShowPastJobs(true)}
-        style={{
-          width: "100%",
-          height: "70px",
-          fontSize: "18px",
-          marginBottom: "12px",
-          backgroundColor: "#8b5cf6",
-          color: "white",
-          border: "none",
-          borderRadius: "12px",
-          cursor: "pointer",
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontWeight: "600",
-          boxShadow: "0 2px 8px rgba(139,92,246,0.3)"
-        }}
-      >
-        🕐 PAST JOBS
-      </button>
+            {/* CMS Signals - Prominent */}
+            <div 
+              onClick={() => { fetchCmsSignals(); setShowSignals(true); }}
+              style={{
+                backgroundColor: cmsSignals.length > 0 ? '#fef2f2' : '#fff',
+                borderRadius: '16px',
+                padding: '16px 20px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                borderLeft: `4px solid ${cmsSignals.length > 0 ? '#dc2626' : '#f59e0b'}`,
+                marginBottom: '12px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ fontSize: '28px' }}>📡</div>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>CMS Signals</div>
+                  <div style={{ fontSize: '11px', color: '#666' }}>Monitoring alerts</div>
+                </div>
+              </div>
+              {cmsSignals.length > 0 && (
+                <div style={{ 
+                  backgroundColor: '#dc2626', 
+                  color: 'white', 
+                  padding: '4px 12px', 
+                  borderRadius: '20px', 
+                  fontWeight: 'bold',
+                  fontSize: '14px'
+                }}>
+                  {cmsSignals.length}
+                </div>
+              )}
+            </div>
+
+            {/* Row 1: Service Call + To Be Billed */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <div 
+                onClick={openNewServiceCall}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #C41E1E'
+                }}
+              >
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>🔴</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>New Service Call</div>
+                <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Log new job</div>
+              </div>
+              
+              <div 
+                onClick={() => fetchToBeBilled(30)}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #16a34a'
+                }}
+              >
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>💵</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>To Be Billed</div>
+                <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Ready for invoicing</div>
+              </div>
+            </div>
+
+            {/* Row 2: Sales + Today's Jobs */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <div 
+                onClick={fetchSalesQueue}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #ec4899'
+                }}
+              >
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>💰</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>Sales Queue</div>
+                <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Estimates pending</div>
+              </div>
+              
+              <div 
+                onClick={() => viewJobs('today')}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #2563eb'
+                }}
+              >
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>📆</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>Today's Jobs</div>
+                <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Scheduled work</div>
+              </div>
+            </div>
+
+            {/* Row 3: Week + Past */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div 
+                onClick={() => viewJobs('week')}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #16a34a'
+                }}
+              >
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>📅</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>This Week</div>
+                <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Week view</div>
+              </div>
+              
+              <div 
+                onClick={() => setShowPastJobs(true)}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  borderLeft: '4px solid #8b5cf6'
+                }}
+              >
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>🕐</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>Past Jobs</div>
+                <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Search history</div>
+              </div>
+            </div>
+          </>
+        )}
+
       </div>
       <QuickLinksBar />
     </div>
