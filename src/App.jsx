@@ -2,14 +2,14 @@ import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 import { useState, useEffect } from 'react';
 
 function AppContent() {
-  const APP_VERSION = '4.9';
+  const APP_VERSION = '5.0';
   
   // What's New - UPDATE THIS WITH EACH RELEASE
   const WHATS_NEW = [
+    "🎯 Demo Mode: Try the app with sample data",
     "📊 Customer Database: 358 customers from Google Sheets",
     "🔍 Autocomplete: Type to search by name or CS#",
-    "🔗 CMS Match: Signals auto-link to customers by CS#",
-    "📧 CMS: Reads from monitoring-center-notifications label"
+    "🔗 CMS Match: Signals auto-link to customers"
   ];
 
   // Browser Push Notifications
@@ -54,6 +54,113 @@ const [userEmail, setUserEmail] = useState(() => {
   return localStorage.getItem('googleUserEmail');
 });
 
+  // Demo Mode - activated via ?demo=1 URL parameter
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const showDemoButton = new URLSearchParams(window.location.search).has('demo');
+  
+  // Demo company branding
+  const DEMO_COMPANY = {
+    name: 'Summit Security Solutions',
+    logo: null, // Will use text instead
+    tagline: 'Protecting What Matters'
+  };
+
+  // Demo data
+  const DEMO_CUSTOMERS = [
+    { cs_id: 'SSS-1001', name: 'RIVERSIDE MEDICAL CENTER', phone: '(303) 555-1234', address: '1250 Medical Center Dr, Denver, CO 80220' },
+    { cs_id: 'SSS-1002', name: 'JOHNSON, MICHAEL', phone: '(720) 555-2345', address: '4521 Oak Street, Aurora, CO 80014' },
+    { cs_id: 'SSS-1003', name: 'PEAK PERFORMANCE GYM', phone: '(303) 555-3456', address: '789 Fitness Blvd, Lakewood, CO 80228' },
+    { cs_id: 'SSS-1004', name: 'MARTINEZ FAMILY RESIDENCE', phone: '(720) 555-4567', address: '1122 Maple Ave, Centennial, CO 80112' },
+    { cs_id: 'SSS-1005', name: 'DOWNTOWN DENTAL ASSOCIATES', phone: '(303) 555-5678', address: '500 16th Street Mall, Denver, CO 80202' },
+    { cs_id: 'SSS-1006', name: 'GOLDEN GATE STORAGE', phone: '(303) 555-6789', address: '8900 W Colfax Ave, Golden, CO 80401' },
+    { cs_id: 'SSS-1007', name: 'THOMPSON, SARAH & DAVID', phone: '(720) 555-7890', address: '3345 Sunset Ridge, Highlands Ranch, CO 80129' },
+    { cs_id: 'SSS-1008', name: 'ROCKY MOUNTAIN BREWING CO', phone: '(303) 555-8901', address: '2100 Blake Street, Denver, CO 80205' },
+    { cs_id: 'SSS-1009', name: 'APEX TECHNOLOGY SOLUTIONS', phone: '(720) 555-9012', address: '5600 DTC Blvd, Greenwood Village, CO 80111' },
+    { cs_id: 'SSS-1010', name: 'CHEN, WILLIAM', phone: '(303) 555-0123', address: '901 Cherry Creek Dr, Denver, CO 80246' },
+    { cs_id: 'SSS-1011', name: 'MILE HIGH VETERINARY', phone: '(720) 555-1122', address: '4400 E Iliff Ave, Denver, CO 80222' },
+    { cs_id: 'SSS-1012', name: 'WESTSIDE COMMUNITY CHURCH', phone: '(303) 555-2233', address: '7700 W Alameda Ave, Lakewood, CO 80226' },
+    { cs_id: 'SSS-1013', name: 'NGUYEN, LISA', phone: '(720) 555-3344', address: '2250 S Parker Rd, Aurora, CO 80014' },
+    { cs_id: 'SSS-1014', name: 'BOULDER VALLEY CREDIT UNION', phone: '(303) 555-4455', address: '1800 28th Street, Boulder, CO 80301' },
+    { cs_id: 'SSS-1015', name: 'PRECISION AUTO BODY', phone: '(720) 555-5566', address: '6200 E Evans Ave, Denver, CO 80222' }
+  ];
+
+  const DEMO_QUEUE_JOBS = [
+    { id: 'demo-q1', summary: '[SERVICE] - QUEUE - 🔴 URGENT RIVERSIDE MEDICAL CENTER', description: '👤 Customer: RIVERSIDE MEDICAL CENTER\n📞 Phone: (303) 555-1234\n📍 Address: 1250 Medical Center Dr, Denver, CO 80220\n📥 Source: Monitoring\n⚡ Priority: URGENT\n\n📝 Issue:\nFire panel showing trouble - zone 4 smoke detector', location: '1250 Medical Center Dr, Denver, CO 80220', created: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
+    { id: 'demo-q2', summary: '[SERVICE] - QUEUE - JOHNSON, MICHAEL', description: '👤 Customer: JOHNSON, MICHAEL\n📞 Phone: (720) 555-2345\n📍 Address: 4521 Oak Street, Aurora, CO 80014\n📥 Source: Phone Call\n⚡ Priority: NORMAL\n\n📝 Issue:\nKeypad beeping intermittently, needs battery check', location: '4521 Oak Street, Aurora, CO 80014', created: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString() },
+    { id: 'demo-q3', summary: '[SERVICE] - QUEUE - 🟠 HIGH PEAK PERFORMANCE GYM', description: '👤 Customer: PEAK PERFORMANCE GYM\n📞 Phone: (303) 555-3456\n📍 Address: 789 Fitness Blvd, Lakewood, CO 80228\n📥 Source: Email\n⚡ Priority: HIGH\n\n📝 Issue:\nMotion sensor in back office not detecting movement', location: '789 Fitness Blvd, Lakewood, CO 80228', created: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() },
+    { id: 'demo-q4', summary: '[SERVICE] - QUEUE - MARTINEZ FAMILY RESIDENCE', description: '👤 Customer: MARTINEZ FAMILY RESIDENCE\n📞 Phone: (720) 555-4567\n📍 Address: 1122 Maple Ave, Centennial, CO 80112\n📥 Source: Phone Call\n⚡ Priority: NORMAL\n\n📝 Issue:\nNew homeowner - need system orientation and code change', location: '1122 Maple Ave, Centennial, CO 80112', created: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString() }
+  ];
+
+  const DEMO_TECH_JOBS = {
+    mike: [
+      { id: 'demo-m1', summary: 'DOWNTOWN DENTAL ASSOCIATES', description: '👤 Customer: DOWNTOWN DENTAL ASSOCIATES\n📞 Phone: (303) 555-5678\n📍 Address: 500 16th Street Mall, Denver, CO 80202\n\n📝 Notes:\nAnnual inspection - check all sensors and panel', location: '500 16th Street Mall, Denver, CO 80202', start: { dateTime: new Date().setHours(9, 0, 0, 0) }, end: { dateTime: new Date().setHours(10, 30, 0, 0) } },
+      { id: 'demo-m2', summary: 'GOLDEN GATE STORAGE', description: '👤 Customer: GOLDEN GATE STORAGE\n📞 Phone: (303) 555-6789\n📍 Address: 8900 W Colfax Ave, Golden, CO 80401\n\n📝 Notes:\nReplace DVR - unit 4 cameras offline', location: '8900 W Colfax Ave, Golden, CO 80401', start: { dateTime: new Date().setHours(11, 0, 0, 0) }, end: { dateTime: new Date().setHours(13, 0, 0, 0) } },
+      { id: 'demo-m3', summary: 'THOMPSON, SARAH & DAVID', description: '👤 Customer: THOMPSON, SARAH & DAVID\n📞 Phone: (720) 555-7890\n📍 Address: 3345 Sunset Ridge, Highlands Ranch, CO 80129\n\n📝 Notes:\nInstall doorbell camera - customer provided Ring device', location: '3345 Sunset Ridge, Highlands Ranch, CO 80129', start: { dateTime: new Date().setHours(14, 0, 0, 0) }, end: { dateTime: new Date().setHours(15, 30, 0, 0) } }
+    ],
+    dave: [
+      { id: 'demo-d1', summary: 'ROCKY MOUNTAIN BREWING CO', description: '👤 Customer: ROCKY MOUNTAIN BREWING CO\n📞 Phone: (303) 555-8901\n📍 Address: 2100 Blake Street, Denver, CO 80205\n\n📝 Notes:\nAccess control issue - back door not locking', location: '2100 Blake Street, Denver, CO 80205', start: { dateTime: new Date().setHours(8, 30, 0, 0) }, end: { dateTime: new Date().setHours(10, 0, 0, 0) } },
+      { id: 'demo-d2', summary: 'APEX TECHNOLOGY SOLUTIONS', description: '👤 Customer: APEX TECHNOLOGY SOLUTIONS\n📞 Phone: (720) 555-9012\n📍 Address: 5600 DTC Blvd, Greenwood Village, CO 80111\n\n📝 Notes:\nServer room sensor install - heat detection', location: '5600 DTC Blvd, Greenwood Village, CO 80111', start: { dateTime: new Date().setHours(11, 0, 0, 0) }, end: { dateTime: new Date().setHours(14, 0, 0, 0) } }
+    ],
+    sarah: [
+      { id: 'demo-s1', summary: 'Follow up: CHEN, WILLIAM - Estimate', description: '📝 Call customer re: camera upgrade quote sent 12/28', start: { dateTime: new Date().setHours(9, 0, 0, 0) }, end: { dateTime: new Date().setHours(9, 30, 0, 0) } },
+      { id: 'demo-s2', summary: 'Billing review - December invoices', description: '📝 Review and send outstanding December invoices', start: { dateTime: new Date().setHours(10, 0, 0, 0) }, end: { dateTime: new Date().setHours(12, 0, 0, 0) } }
+    ]
+  };
+
+  const DEMO_CMS_SIGNALS = [
+    { id: 'demo-cms1', customer: 'MILE HIGH VETERINARY', csNumber: 'SSS-1011', signalType: 'Trbl Signal', zone: 'Zone 3 - Kennel Area Motion', address: '4400 E Iliff Ave, Denver, CO 80222', phone: '(720) 555-1122', timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString() },
+    { id: 'demo-cms2', customer: 'WESTSIDE COMMUNITY CHURCH', csNumber: 'SSS-1012', signalType: 'Supervisory', zone: 'Zone 1 - Main Entry Door', address: '7700 W Alameda Ave, Lakewood, CO 80226', phone: '(303) 555-2233', timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString() },
+    { id: 'demo-cms3', customer: 'BOULDER VALLEY CREDIT UNION', csNumber: 'SSS-1014', signalType: 'Alarm', zone: 'Zone 7 - Vault Motion Sensor', address: '1800 28th Street, Boulder, CO 80301', phone: '(303) 555-4455', timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString() }
+  ];
+
+  const DEMO_COMPLETED_JOBS = [
+    { id: 'demo-c1', summary: '[COMPLETE] NGUYEN, LISA', description: '👤 Customer: NGUYEN, LISA\n📞 Phone: (720) 555-3344\n📍 Address: 2250 S Parker Rd, Aurora, CO 80014\n\n📝 Notes:\nReplaced backup battery in main panel. System tested OK.', location: '2250 S Parker Rd, Aurora, CO 80014', start: { dateTime: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+    { id: 'demo-c2', summary: '[COMPLETE] PRECISION AUTO BODY', description: '👤 Customer: PRECISION AUTO BODY\n📞 Phone: (720) 555-5566\n📍 Address: 6200 E Evans Ave, Denver, CO 80222\n\n📝 Notes:\nInstalled 2 new cameras in paint booth area. Customer trained on app.', location: '6200 E Evans Ave, Denver, CO 80222', start: { dateTime: new Date(Date.now() - 48 * 60 * 60 * 1000) } },
+    { id: 'demo-c3', summary: '[COMPLETE] CHEN, WILLIAM', description: '👤 Customer: CHEN, WILLIAM\n📞 Phone: (303) 555-0123\n📍 Address: 901 Cherry Creek Dr, Denver, CO 80246\n\n📝 Notes:\nKeypad replacement - old one had worn buttons. Code retained.', location: '901 Cherry Creek Dr, Denver, CO 80246', start: { dateTime: new Date(Date.now() - 72 * 60 * 60 * 1000) } }
+  ];
+
+  const DEMO_SALES_JOBS = [
+    { id: 'demo-est1', summary: '[ESTIMATE] APEX TECHNOLOGY SOLUTIONS - Camera Expansion', description: '📝 Customer interested in adding 4 cameras to warehouse\nQuote: $2,400 equipment + $600 install\nSent 12/30', start: { dateTime: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) } },
+    { id: 'demo-est2', summary: '[ESTIMATE SENT] ROCKY MOUNTAIN BREWING CO - Access Control', description: '📝 Full access control system for new taproom location\nQuote: $8,500\nFollowing up 1/5', start: { dateTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000) } }
+  ];
+
+  // Function to enter demo mode
+  const enterDemoMode = () => {
+    setIsDemoMode(true);
+    setUserEmail('demo@summitsecurity.com');
+    setAccessToken('demo-token');
+    setCustomerDatabase(DEMO_CUSTOMERS);
+    setQueueJobs(DEMO_QUEUE_JOBS);
+    setAustinJobs(DEMO_TECH_JOBS.mike.map(j => ({ ...j, calendarId: 'demo-mike' })));
+    setJrJobs(DEMO_TECH_JOBS.dave.map(j => ({ ...j, calendarId: 'demo-dave' })));
+    setSaraJobs(DEMO_TECH_JOBS.sarah.map(j => ({ ...j, calendarId: 'demo-sarah' })));
+    setCmsSignals(DEMO_CMS_SIGNALS);
+    setCompletedJobs(DEMO_COMPLETED_JOBS.map(j => ({ ...j, calendarId: 'demo-completed' })));
+    setSalesJobs(DEMO_SALES_JOBS.map(j => ({ ...j, calendarId: 'demo-sales' })));
+    setReturnJobs([]);
+  };
+
+  // Exit demo mode
+  const exitDemoMode = () => {
+    setIsDemoMode(false);
+    setUserEmail(null);
+    setAccessToken(null);
+    localStorage.removeItem('googleAccessToken');
+    localStorage.removeItem('googleUserEmail');
+    window.location.href = window.location.pathname; // Remove ?demo param
+  };
+
+  // Tech names - different in demo mode
+  const TECH_NAMES = isDemoMode ? {
+    austin: 'Mike',
+    jr: 'Dave', 
+    sara: 'Sarah'
+  } : {
+    austin: 'Austin',
+    jr: 'JR',
+    sara: 'Sara'
+  };
+
   // What's New modal state
   const [showWhatsNew, setShowWhatsNew] = useState(() => {
     const lastSeen = localStorage.getItem('lastSeenWhatsNew');
@@ -79,6 +186,9 @@ const [userEmail, setUserEmail] = useState(() => {
   const getUserRole = (email) => {
     if (!email) return 'tech';
     const lowerEmail = email.toLowerCase();
+    
+    // Demo mode gets full admin access
+    if (lowerEmail === 'demo@summitsecurity.com') return 'admin';
     
     if (lowerEmail === 'info@drhsecurityservices.com') return 'superadmin';
     if (lowerEmail === 'shanaparks@drhsecurityservices.com') return 'command';
@@ -1975,32 +2085,85 @@ ${completionData.billingNotes || 'None'}
           width: '100%',
           boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
         }}>
-          <img src="/DRH_Logo.png" alt="DRH Security" style={{ height: '80px', marginBottom: '24px' }} />
-          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", color: '#0A2240', marginBottom: '8px', fontSize: '24px' }}>JUC-E</h1>
-          <p style={{ fontSize: '14px', color: '#6B7280', marginBottom: '32px' }}>
-            Job Unit Coordination Engine
-          </p>
-          <button 
-            onClick={login}
-            style={{
-              width: '100%',
-              padding: '16px 32px',
-              fontSize: '16px',
-              backgroundColor: '#C41E1E',
-              color: 'white',
-              border: 'none',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontFamily: "'Inter', sans-serif",
-              boxShadow: '0 4px 12px rgba(196,30,30,0.3)'
-            }}
-          >
-            Sign in with Google
-          </button>
-          <p style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '24px' }}>
-            A Division of HighSide Security
-          </p>
+          {showDemoButton ? (
+            <>
+              {/* Demo Mode Login */}
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🛡️</div>
+              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", color: '#0A2240', marginBottom: '8px', fontSize: '24px' }}>JUC-E</h1>
+              <p style={{ fontSize: '14px', color: '#6B7280', marginBottom: '32px' }}>
+                Field Operations Management Platform
+              </p>
+              <button 
+                onClick={enterDemoMode}
+                style={{
+                  width: '100%',
+                  padding: '16px 32px',
+                  fontSize: '16px',
+                  backgroundColor: '#16a34a',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontFamily: "'Inter', sans-serif",
+                  boxShadow: '0 4px 12px rgba(22,163,74,0.3)',
+                  marginBottom: '12px'
+                }}
+              >
+                🎯 Try Interactive Demo
+              </button>
+              <button 
+                onClick={login}
+                style={{
+                  width: '100%',
+                  padding: '12px 24px',
+                  fontSize: '14px',
+                  backgroundColor: 'transparent',
+                  color: '#6B7280',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontWeight: '500',
+                  fontFamily: "'Inter', sans-serif"
+                }}
+              >
+                Sign in with Google
+              </button>
+              <p style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '24px' }}>
+                Demo uses sample data • No login required
+              </p>
+            </>
+          ) : (
+            <>
+              {/* Normal DRH Login */}
+              <img src="/DRH_Logo.png" alt="DRH Security" style={{ height: '80px', marginBottom: '24px' }} />
+              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", color: '#0A2240', marginBottom: '8px', fontSize: '24px' }}>JUC-E</h1>
+              <p style={{ fontSize: '14px', color: '#6B7280', marginBottom: '32px' }}>
+                Job Unit Coordination Engine
+              </p>
+              <button 
+                onClick={login}
+                style={{
+                  width: '100%',
+                  padding: '16px 32px',
+                  fontSize: '16px',
+                  backgroundColor: '#C41E1E',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontFamily: "'Inter', sans-serif",
+                  boxShadow: '0 4px 12px rgba(196,30,30,0.3)'
+                }}
+              >
+                Sign in with Google
+              </button>
+              <p style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '24px' }}>
+                A Division of HighSide Security
+              </p>
+            </>
+          )}
         </div>
       </div>
     );
@@ -2260,13 +2423,13 @@ ${completionData.billingNotes || 'None'}
             Queue ({queueJobs.length})
           </button>
           <button onClick={() => setDispatchTab('austin')} style={{ flex: 1, minWidth: '60px', padding: '12px', fontSize: '13px', backgroundColor: dispatchTab === 'austin' ? '#0891b2' : '#e5e7eb', color: dispatchTab === 'austin' ? 'white' : '#374151', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: dispatchTab === 'austin' ? 'bold' : 'normal' }}>
-            Austin ({austinJobs.length})
+            {TECH_NAMES.austin} ({austinJobs.length})
           </button>
           <button onClick={() => setDispatchTab('jr')} style={{ flex: 1, minWidth: '60px', padding: '12px', fontSize: '13px', backgroundColor: dispatchTab === 'jr' ? '#2563eb' : '#e5e7eb', color: dispatchTab === 'jr' ? 'white' : '#374151', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: dispatchTab === 'jr' ? 'bold' : 'normal' }}>
-            JR ({jrJobs.length})
+            {TECH_NAMES.jr} ({jrJobs.length})
           </button>
           <button onClick={() => setDispatchTab('sara')} style={{ flex: 1, minWidth: '60px', padding: '12px', fontSize: '13px', backgroundColor: dispatchTab === 'sara' ? '#ec4899' : '#e5e7eb', color: dispatchTab === 'sara' ? 'white' : '#374151', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: dispatchTab === 'sara' ? 'bold' : 'normal' }}>
-            Sara ({saraJobs.length})
+            {TECH_NAMES.sara} ({saraJobs.length})
           </button>
           <button onClick={() => setDispatchTab('returns')} style={{ flex: 1, minWidth: '60px', padding: '12px', fontSize: '13px', backgroundColor: dispatchTab === 'returns' ? '#9333ea' : '#e5e7eb', color: dispatchTab === 'returns' ? 'white' : '#374151', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: dispatchTab === 'returns' ? 'bold' : 'normal' }}>
             🔄 ({returnNeededJobs.length})
@@ -2307,9 +2470,9 @@ ${completionData.billingNotes || 'None'}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       <button onClick={() => { openCompletionForm(job, 'complete'); setShowDispatch(false); }} style={{ width: '100%', padding: '8px', fontSize: '12px', backgroundColor: '#16a34a', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>✅ Work Completed</button>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <button onClick={() => openAssignModal(job, 'austin')} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#0891b2', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Austin</button>
-                        <button onClick={() => openAssignModal(job, 'jr')} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>JR</button>
-                        <button onClick={() => openAssignModal(job, 'sara')} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#ec4899', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Sara</button>
+                        <button onClick={() => openAssignModal(job, 'austin')} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#0891b2', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>{TECH_NAMES.austin}</button>
+                        <button onClick={() => openAssignModal(job, 'jr')} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>{TECH_NAMES.jr}</button>
+                        <button onClick={() => openAssignModal(job, 'sara')} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#ec4899', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>{TECH_NAMES.sara}</button>
                       </div>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <button onClick={() => moveToEstimate(job)} style={{ flex: 1, padding: '8px', fontSize: '12px', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Estimate</button>
@@ -4585,29 +4748,53 @@ if (showTasks) {
       }}>
       {/* Header */}
       <div style={{
-        background: '#0A2240',
+        background: isDemoMode ? '#16a34a' : '#0A2240',
         padding: '16px 20px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: '20px'
       }}>
-        <img src="/DRH_Logo.png" alt="DRH Security" style={{ height: '45px' }} />
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', marginBottom: '4px' }}>{userEmail}</div>
-          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-            <button onClick={() => { localStorage.clear(); window.location.reload(); }} style={{ 
-              padding: '6px 12px', 
-              backgroundColor: 'rgba(255,255,255,0.1)', 
+        {isDemoMode ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '32px' }}>🛡️</span>
+              <div>
+                <div style={{ color: 'white', fontSize: '16px', fontWeight: '700' }}>{DEMO_COMPANY.name}</div>
+                <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '11px' }}>DEMO MODE</div>
+              </div>
+            </div>
+            <button onClick={exitDemoMode} style={{ 
+              padding: '8px 16px', 
+              backgroundColor: 'rgba(255,255,255,0.2)', 
               color: 'white', 
-              border: '1px solid rgba(255,255,255,0.2)', 
+              border: '1px solid rgba(255,255,255,0.3)', 
               borderRadius: '6px', 
               cursor: 'pointer', 
-              fontSize: '11px',
-              fontWeight: '500'
-            }}>Logout</button>
-          </div>
-        </div>
+              fontSize: '12px',
+              fontWeight: '600'
+            }}>Exit Demo</button>
+          </>
+        ) : (
+          <>
+            <img src="/DRH_Logo.png" alt="DRH Security" style={{ height: '45px' }} />
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px', marginBottom: '4px' }}>{userEmail}</div>
+              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                <button onClick={() => { localStorage.clear(); window.location.reload(); }} style={{ 
+                  padding: '6px 12px', 
+                  backgroundColor: 'rgba(255,255,255,0.1)', 
+                  color: 'white', 
+                  border: '1px solid rgba(255,255,255,0.2)', 
+                  borderRadius: '6px', 
+                  cursor: 'pointer', 
+                  fontSize: '11px',
+                  fontWeight: '500'
+                }}>Logout</button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* View Toggle for Super Admin */}
@@ -5107,7 +5294,7 @@ if (showTasks) {
         )}
 
       </div>
-      <QuickLinksBar />
+      {!isDemoMode && <QuickLinksBar />}
     </div>
     </>
   );
